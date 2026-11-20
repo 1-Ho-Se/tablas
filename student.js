@@ -3,7 +3,8 @@
 "use strict";
 const {DAY,OPS,OP_LIST,FACTS,parts,keyOf,ORDER,hint,tierOf,fmtTokens,esc,dayKey,mastered,streak,flameSVG}=window.T;
 const $=s=>document.querySelector(s);
-const KEY='constelacion.app.v3', FAST=4000, STREAK_MS=3000, ROUND=20;
+const KEY='constelacion.app.v3', FAST=4000, STREAK_MS=3000, ROUND=20, TIMES=[5,8,10,15,20,30,0];
+const limitOf=u=>u.infTime==null?10:u.infTime;
 const INTERVAL={1:0,2:DAY,3:3*DAY,4:7*DAY,5:21*DAY};
 const sb=window.T.client();
 
@@ -19,7 +20,24 @@ const fxOn=()=>S.fx!==false;
 const fxSet=(t,n)=>{if(fxOn())FX.set(t,n);else FX.set(null)};
 const fxFreeze=()=>{if(fxOn())FX.freeze()};
 const fxFizzle=()=>{if(fxOn())FX.fizzle()};
-function show(v){document.querySelectorAll('.view').forEach(e=>e.hidden=e.id!=='v-'+v);cur=v;window.scrollTo(0,0)}
+function show(v){document.querySelectorAll('.view').forEach(e=>e.hidden=e.id!=='v-'+v);cur=v;window.scrollTo(0,0);
+  document.body.classList.toggle('space',v==='home'||v==='auth');if(v==='home'&&window.SPACE)requestAnimationFrame(()=>SPACE.draw());document.body.classList.toggle('playing',v==='play');navTo(v)}
+/* ---------- back gesture: one history entry above the menu, so "back" always returns to it ---------- */
+let skipPop=0;
+function navTo(v){const st=history.state&&history.state.v;
+  if(v==='home'||v==='auth'){if(st==='sub'){skipPop++;history.back()}else if(st!=='root')history.replaceState({v:'root'},'')}
+  else if(st==='sub')history.replaceState({v:'sub'},'');else history.pushState({v:'sub'},'')}
+window.addEventListener('popstate',()=>{if(skipPop){skipPop--;return}
+  if(cur==='play'&&G)quitGame();else if(cur!=='home'&&cur!=='auth')go(U?'home':'auth')});
+/* iPhone home-screen apps have no system back gesture: swipe from the left edge does it */
+if(navigator.standalone){let sx=null,sy=0;
+  document.addEventListener('touchstart',e=>{const t=e.touches[0];sx=e.touches.length===1&&t.clientX<28?t.clientX:null;sy=t.clientY},{passive:true});
+  document.addEventListener('touchend',e=>{if(sx==null)return;const t=e.changedTouches[0],dx=t.clientX-sx,dy=Math.abs(t.clientY-sy);sx=null;
+    if(dx>70&&dy<80&&cur!=='home'&&cur!=='auth')history.back()},{passive:true})}
+/* no zoom inside the game: pinch, double tap and iOS gestures */
+['gesturestart','gesturechange'].forEach(n=>document.addEventListener(n,e=>e.preventDefault()));
+document.addEventListener('touchmove',e=>{if(e.touches.length>1)e.preventDefault()},{passive:false});
+document.addEventListener('dblclick',e=>e.preventDefault());
 
 /* ---------- derived numbers ---------- */
 function tokensOf(u){let t=u.srv.tokens;u.pending.forEach(s=>{if(s.pf)t+=.5;t-=s.tu||0});if(G&&u===U)t-=G.tu;return Math.max(0,t)}
@@ -111,6 +129,8 @@ function opCard(op,extra,on){return`<button type="button" class="opcard op-${op}
 function renderMission(){paintTokens();$('#missionOps').innerHTML=OP_LIST.map(op=>opCard(op)).join('')}
 function renderOrbit(){const u=U;paintTokens();$('#recRun').textContent=bestRun(u);const bs=bestStreak(u);$('#recStreak').innerHTML=`${flameFor(bs)}<span>${bs}</span>`;
   $('#infOps').innerHTML=OP_LIST.map(op=>opCard(op,`aria-pressed="${u.infOps.includes(op)}"`,u.infOps.includes(op))).join('');
+  const lim=limitOf(u);$('#infTime').innerHTML=TIMES.map(t=>`<button type="button" role="radio" class="tchip${t===lim?' on':''}" aria-checked="${t===lim}" data-t="${t}">${t?t+' s':'Sin límite'}</button>`).join('');
+  $('#infTimeNote').textContent=lim?`Si pasan ${lim} s, se acaba la órbita`:'Piensa con calma';
   $('#infBtn').disabled=!u.infOps.length;$('#infBtn').textContent=u.infOps.length?'Despegar':'Elige al menos una'}
 function renderProfile(){const u=U,now=Date.now();paintTokens();$('#profUser').textContent=u.username;
   const st=streak(new Set(u.log.map(s=>dayKey(s.s))));$('#streakDays').textContent=st>1?st+' días seguidos':'';
@@ -131,13 +151,15 @@ $('#missionOps').addEventListener('click',e=>{const b=e.target.closest('[data-op
 $('#opTabs').addEventListener('click',e=>{const b=e.target.closest('[data-op]');if(b){U.op=b.dataset.op;save();renderProfile()}});
 $('#infOps').addEventListener('click',e=>{const b=e.target.closest('[data-op]');if(!b)return;const o=b.dataset.op;
   U.infOps=U.infOps.includes(o)?U.infOps.filter(x=>x!==o):[...U.infOps,o].sort((a,b)=>OP_LIST.indexOf(a)-OP_LIST.indexOf(b));save();renderOrbit()});
+$('#infTime').addEventListener('click',e=>{const b=e.target.closest('[data-t]');if(b){U.infTime=+b.dataset.t;save();renderOrbit()}});
 $('#infBtn').addEventListener('click',()=>{if(U.infOps.length)start('inf',U.infOps.slice())});
 
 /* ---------- game ---------- */
 function touch(k){if(!U.dirty.includes(k))U.dirty.push(k)}
-let freezeTimer=null, tipTimer=null;
+let freezeTimer=null, tipTimer=null, limitTimer=null;
+function stopLimit(){clearTimeout(limitTimer);limitTimer=null;const i=$('#tbar i');i.style.transition='none';i.style.width=i.getBoundingClientRect().width+'px'}
 function start(mode,ops){fxSet(null);
-  G={id:window.T.uuid(),mode,ops,idx:0,retry:[],recent:[],introduced:[],results:[],ups:0,streak:0,maxStreak:0,tu:0,start:Date.now(),q:null,input:'',locked:false,lastIntro:false,startBest:{run:bestRun(U),streak:bestStreak(U)}};
+  G={id:window.T.uuid(),mode,ops,limit:mode==='inf'?limitOf(U):0,idx:0,retry:[],recent:[],introduced:[],results:[],ups:0,streak:0,maxStreak:0,tu:0,start:Date.now(),q:null,input:'',locked:false,lastIntro:false,startBest:{run:bestRun(U),streak:bestStreak(U)}};
   $('#dots').hidden=mode!=='round';$('#dots').innerHTML=mode==='round'?'<i></i>'.repeat(ROUND):'';
   show('play');hud();next();queueSync(300)}
 function weighted(pool){const f=U.facts;let tot=0;const w=pool.map(k=>{const x=6-(f[k]?f[k].b:0);tot+=x;return x});let r=Math.random()*tot;for(let i=0;i<pool.length;i++){r-=w[i];if(r<=0)return pool[i]}return pool[0]}
@@ -156,7 +178,7 @@ function pickInf(){const ri=G.retry.findIndex(o=>o.at<=G.idx&&!G.recent.includes
   /* difficulty ramps up: starts with the easiest families and opens more as the run grows */
   const open=Math.min(45,10+Math.floor(G.idx/2));
   const pool=G.ops.flatMap(op=>ORDER[op].slice(0,open)).filter(k=>!G.recent.includes(k));return{k:weighted(pool)}}
-function next(){clearTimeout(freezeTimer);if(G.mode==='round'&&G.idx>=ROUND)return endGame();
+function next(){clearTimeout(freezeTimer);stopLimit();if(G.mode==='round'&&G.idx>=ROUND)return endGame();
   const c=G.mode==='round'?pickRound():pickInf();const k=c.k;G.recent=[k,...G.recent].slice(0,3);G.lastIntro=!!c.intro;
   const[op,a,b]=parts(k);let x=a,y=b;if(Math.random()<.5)[x,y]=[y,x];
   const rec=U.facts[k];const missing=(op==='m'||op==='a')&&rec&&rec.b>=3&&Math.random()<.25;
@@ -171,8 +193,16 @@ function next(){clearTimeout(freezeTimer);if(G.mode==='round'&&G.idx>=ROUND)retu
     $('#introQ').textContent=shown;$('#introHint').textContent=hint(q);$('#intro').hidden=false;G.locked=true;$('#introOk').focus()}
   else shownNow()}
 /* while on a streak, taking longer than STREAK_MS freezes the fire right away */
-function shownNow(){G.q.t0=performance.now();clearTimeout(freezeTimer);
-  if(G.streak>=3)freezeTimer=setTimeout(()=>{if(G&&!G.locked&&G.streak>=3){G.streak=0;fxFreeze();hud(true)}},STREAK_MS)}
+function shownNow(){G.q.t0=performance.now();clearTimeout(freezeTimer);clearTimeout(G.lowAt);
+  if(G.streak>=3)freezeTimer=setTimeout(()=>{if(G&&!G.locked&&G.streak>=3){G.streak=0;fxFreeze();hud(true)}},STREAK_MS);
+  /* Órbita infinita: time limit per operation, drawn as a bar that drains */
+  const lim=G.mode==='inf'?G.limit:0,bar=$('#tbar'),i=bar.firstElementChild;bar.hidden=!lim;clearTimeout(limitTimer);
+  if(lim){bar.classList.remove('low');i.style.transition='none';i.style.width='100%';void i.offsetWidth;i.style.transition=`width ${lim}s linear`;i.style.width='0%';
+    limitTimer=setTimeout(timeUp,lim*1000);G.lowAt=setTimeout(()=>bar.classList.add('low'),Math.max(0,lim*1000-3000))}}
+function timeUp(){limitTimer=null;if(!G||G.locked||cur!=='play')return;G.locked=true;clearTimeout(freezeTimer);const q=G.q;
+  record(false,false,G.limit*1000);G.results.push({k:q.k,ok:false,el:G.limit*1000,late:true});G.idx++;
+  if(G.streak>=3)fxFizzle();G.streak=0;save();hud();queueSync();
+  showWrong(q,'¡Se acabó el tiempo!')}
 $('#introOk').addEventListener('click',()=>{$('#intro').hidden=true;G.locked=false;shownNow()});
 function hud(bump){const n=G.streak;$('#streakIcon').innerHTML=flameFor(n);$('#streakNum').textContent=n;
   const t=tierOf(n);const box=$('#streakBox');box.className='streak'+(t?' lit t-'+t.id:'');if(bump){void box.offsetWidth;box.classList.add('bump')}
@@ -195,7 +225,7 @@ function record(ok,fast,el){const now=Date.now(),q=G.q;let rec=U.facts[q.k];
   else if(ok){if(rec.b>=3)rec.b--;rec.b=Math.max(1,rec.b);rec.d=now+INTERVAL[rec.b];if(rec.b===1)G.retry.push({k:q.k,at:G.idx+4})}
   else{rec.w++;rec.b=1;rec.d=now;G.retry.push({k:q.k,at:G.idx+3})}
   touch(q.k)}
-function submit(){G.locked=true;clearTimeout(freezeTimer);const el=performance.now()-G.q.t0,q=G.q;
+function submit(){G.locked=true;clearTimeout(freezeTimer);stopLimit();clearTimeout(G.lowAt);const el=performance.now()-G.q.t0,q=G.q;
   const ok=parseInt(G.input,10)===q.ans,fast=ok&&el<=FAST,quick=ok&&el<=STREAK_MS;
   record(ok,fast,el);G.results.push({k:q.k,ok,fast,el});G.idx++;
   let bump=false;
@@ -205,33 +235,35 @@ function submit(){G.locked=true;clearTimeout(freezeTimer);const el=performance.n
   const fb=$('#fb');
   if(fast){fb.textContent=G.streak>=10?'¡En llamas!':G.streak>=5?'¡Imparable!':'¡Exacto!';fb.className='fb ok';$('#card').className='card good';setTimeout(next,450)}
   else if(ok){fb.textContent='Bien. La próxima, más rápido.';fb.className='fb slow';$('#card').className='card good';setTimeout(next,1000)}
-  else{$('#card').className='card badc';$('#wrongTag').textContent='Era '+q.ans;$('#wrongQ').textContent=q.shown;$('#wrongHint').textContent=hint(q);
-    const end=G.mode==='inf';$('#wrongNote').textContent=end?'Se acabó la partida.':'Te la vuelvo a preguntar en un ratito.';$('#wrongOk').textContent=end?'Ver resultado':'Seguir';
-    $('#wrong').hidden=false;$('#wrongOk').focus()}}
+  else showWrong(q,'Era '+q.ans)}
+function showWrong(q,tag){$('#card').className='card badc';$('#wrongTag').textContent=tag;$('#wrongQ').textContent=q.shown;$('#wrongHint').textContent=hint(q);
+  const end=G.mode==='inf';$('#wrongNote').textContent=end?'Se acabó la órbita.':'Te la vuelvo a preguntar en un ratito.';$('#wrongOk').textContent=end?'Ver resultado':'Seguir';
+  $('#wrong').hidden=false;$('#wrongOk').focus()}
 $('#wrongOk').addEventListener('click',()=>{$('#wrong').hidden=true;if(G.mode==='inf')endGame();else next()});
 /* tokens: first tap arms, second tap spends one and reveals the answer. The fact goes back to review. */
 let armed=false;
 $('#tokenBtn').addEventListener('click',()=>{if(!G||G.locked||tokensOf(U)<1)return;
   if(!armed){armed=true;$('#tokenTip').hidden=false;clearTimeout(tipTimer);tipTimer=setTimeout(()=>{armed=false;$('#tokenTip').hidden=true},2500);return}
-  armed=false;$('#tokenTip').hidden=true;clearTimeout(tipTimer);clearTimeout(freezeTimer);
+  armed=false;$('#tokenTip').hidden=true;clearTimeout(tipTimer);clearTimeout(freezeTimer);stopLimit();clearTimeout(G.lowAt);
   const q=G.q;G.locked=true;G.tu++;
   const now=Date.now();let rec=U.facts[q.k];if(!rec){rec=U.facts[q.k]={b:1,a:0,w:0,t:0,l:now,d:now,up:0}}
   rec.l=now;rec.b=1;rec.d=now;touch(q.k);if(G.mode==='round')G.retry.push({k:q.k,at:G.idx+4});
   G.results.push({k:q.k,ok:false,tok:true,el:0});G.idx++;save();hud();queueSync();
   $('#ans').textContent=q.ans;$('#fb').textContent='Token usado: '+q.shown;$('#fb').className='fb tokfb';setTimeout(next,1800)});
-$('#quitBtn').addEventListener('click',()=>{clearTimeout(freezeTimer);fxSet(null);if(G&&G.results.length)finishSession();G=null;go('home');sync()});
+function quitGame(){clearTimeout(freezeTimer);stopLimit();if(G)clearTimeout(G.lowAt);fxSet(null);if(G&&G.results.length)finishSession();G=null;$('#intro').hidden=$('#wrong').hidden=true;go('home');sync()}
+$('#quitBtn').addEventListener('click',quitGame);
 function finishSession(){const R=G.results.filter(r=>!r.tok),c=R.filter(r=>r.ok),f=R.filter(r=>r.fast),now=Date.now();
   const n=G.results.length;
   const pf=G.mode==='round'&&n>=ROUND&&c.length===n&&G.tu===0;
   const s={id:G.id,s:G.start,e:now,mode:G.mode,ops:G.ops.join(''),n,c:c.length,f:f.length,ms:c.length?Math.round(c.reduce((a,r)=>a+r.el,0)/c.length):0,nw:G.introduced.length,mk:G.maxStreak,tu:G.tu,pf};
   U.pending.push(s);U.log.push({s:G.start,e:now});if(U.log.length>200)U.log=U.log.slice(-200);save();return s}
-function endGame(){clearTimeout(freezeTimer);fxSet(null);const s=finishSession(),inf=G.mode==='inf';
+function endGame(){clearTimeout(freezeTimer);stopLimit();clearTimeout(G.lowAt);fxSet(null);const s=finishSession(),inf=G.mode==='inf';
   const banners=[];
   if(s.pf)banners.push('¡Misión perfecta! Ganaste medio token.');
   if(inf&&s.c>G.startBest.run)banners.push(`¡Nuevo récord: ${s.c} operaciones!`);
   if(s.mk>G.startBest.streak&&s.mk>=3)banners.push(`¡Nuevo récord de racha: ${s.mk}!`);
   $('#endBanner').hidden=!banners.length;$('#endBanner').innerHTML=banners.map(esc).join('<br>');
-  $('#endEyebrow').textContent=inf?'Órbita infinita':'Misión '+OPS[G.ops[0]].fun;
+  const late=G.results.some(r=>r.late);$('#endEyebrow').textContent=inf?(late?'Órbita infinita · se acabó el tiempo':'Órbita infinita'):'Misión '+OPS[G.ops[0]].fun;
   $('#endTitle').textContent=inf?`${s.c} operaciones seguidas`:(s.c>=18?'¡Qué ronda, '+U.username+'!':s.c>=14?'Buen trabajo, '+U.username+'.':'Vas sumando, '+U.username+'.');
   const mins=Math.round(minutesToday(U)),goal=U.goal||10;$('#endGoal').textContent=mins>=goal?`Meta de hoy cumplida: ${mins} de ${goal} min.`:`Llevas ${mins} de ${goal} min hoy.`;
   const stats=inf?[['Operaciones',s.c],['Récord',Math.max(s.c,G.startBest.run)],['Mejor racha',`${flameFor(s.mk)}${s.mk}`]]

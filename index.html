@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Constelación ×</title>
 <meta name="theme-color" content="#0C1230">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<div id="space" aria-hidden="true"></div>
 
 <!-- ============ AUTH ============ -->
 <section class="view" id="v-auth">
@@ -95,6 +96,10 @@
     <h3>¿Qué operaciones quieres que salgan?</h3>
     <div class="opcards small" id="infOps"></div>
   </div>
+  <div class="panel">
+    <div class="spread"><h3>Tiempo por operación</h3><span class="small muted" id="infTimeNote"></span></div>
+    <div class="timechips" id="infTime" role="radiogroup" aria-label="Tiempo por operación"></div>
+  </div>
   <button class="btn primary big" type="button" id="infBtn">Despegar</button>
 </section>
 
@@ -137,6 +142,7 @@
   </div>
   <div class="dots" id="dots"></div>
   <div class="card" id="card">
+    <div class="tbar" id="tbar" hidden><i></i></div>
     <div class="tokentip" id="tokenTip" hidden>Toca otra vez para usar 1 token y ver la respuesta</div>
     <div class="q" id="q"></div>
     <div class="ans" id="ans"></div>
@@ -187,6 +193,7 @@
 <script src="vendor/supabase.js"></script>
 <script src="common.js"></script>
 <script src="effects.js"></script>
+<script src="space.js"></script>
 <script src="student.js"></script>
 <script>if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));</script>
 </body>

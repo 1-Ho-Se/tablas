@@ -182,12 +182,14 @@ button.tokens:disabled{opacity:.55;cursor:not-allowed}
 #fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:50}
 #fire{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:-1}
 /* background follows the fire color */
-body{background-repeat:no-repeat;background-attachment:fixed}
-body.fire-red{background-color:#8f1a10;background-image:radial-gradient(120% 80% at 50% 110%,#e0402a 0%,#a3200f 45%,#4f0c08 100%)}
-body.fire-orange{background-color:#b8430e;background-image:radial-gradient(120% 80% at 50% 110%,#ff8a1e 0%,#c2410c 45%,#7c2d12 100%)}
-body.fire-blue{background-color:#0d2a8a;background-image:radial-gradient(120% 80% at 50% 110%,#2f7dff 0%,#1437b8 45%,#07134d 100%)}
-body.fire-platinum{background-color:#55606f;background-image:radial-gradient(120% 80% at 50% 110%,#c9d2de 0%,#7a8596 45%,#2e3440 100%)}
-body.fire-rainbow{background-color:#5a1a8a;background-image:linear-gradient(135deg,#ff3b30,#ff9500,#ffcc00,#34c759,#2f80ff,#af52de,#ff3b30);background-size:300% 300%;animation:rainbowbg 6s linear infinite}
+#firebg{position:fixed;inset:0;z-index:-2;pointer-events:none}
+#firebg div{position:absolute;inset:0;opacity:0;transition:opacity .9s ease}
+#firebg div.on{opacity:1}
+#firebg .fb-red{background-color:#8f1a10;background-image:radial-gradient(120% 80% at 50% 110%,#e0402a 0%,#a3200f 45%,#4f0c08 100%)}
+#firebg .fb-orange{background-color:#b8430e;background-image:radial-gradient(120% 80% at 50% 110%,#ff8a1e 0%,#c2410c 45%,#7c2d12 100%)}
+#firebg .fb-blue{background-color:#0d2a8a;background-image:radial-gradient(120% 80% at 50% 110%,#2f7dff 0%,#1437b8 45%,#07134d 100%)}
+#firebg .fb-platinum{background-color:#55606f;background-image:radial-gradient(120% 80% at 50% 110%,#c9d2de 0%,#7a8596 45%,#2e3440 100%)}
+#firebg .fb-rainbow{background-color:#5a1a8a;background-image:linear-gradient(135deg,#ff3b30,#ff9500,#ffcc00,#34c759,#2f80ff,#af52de,#ff3b30);background-size:300% 300%;animation:rainbowbg 6s linear infinite}
 @keyframes rainbowbg{to{background-position:300% 0}}
 body.onfire .card,body.onfire .pad button:not(.ok){background:#161036f0}
 body.onfire .muted,body.onfire .link{color:#f3eaff}
@@ -207,7 +209,7 @@ body.fire-rainbow .streak{animation:hue 2s linear infinite}
 body.freezing{background-color:#163a63}
 body.freezing .card{animation:shiver .4s linear 2}
 @keyframes shiver{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
-@media (prefers-reduced-motion:reduce){body.fire-rainbow{animation:none}.streak.bump,body.freezing .card,body.fire-rainbow .streak{animation:none}}
+@media (prefers-reduced-motion:reduce){#firebg .fb-rainbow{animation:none}.streak.bump,body.freezing .card,body.fire-rainbow .streak{animation:none}}
 
 .opbtn span{min-width:0;overflow-wrap:anywhere}
 #stuStats,#stuOps{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
@@ -286,3 +288,32 @@ body.freezing .card{animation:shiver .4s linear 2}
 .tokenwin .bigcoin,.tokenwin b{position:relative}
 .tokenwin b{font-size:1.8rem;text-shadow:0 2px 0 #050817}
 #v-home .sync.center{display:flex}
+
+/* ===== v6: no zoom, back gesture friendly ===== */
+html{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%;overscroll-behavior-y:none}
+body{overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent}
+body.playing{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+
+/* ===== v6: time limit in Órbita ===== */
+.timechips{display:flex;flex-wrap:wrap;gap:8px}
+.tchip{border:1px solid var(--line);background:var(--panel2);border-radius:999px;padding:9px 14px;font-weight:800;font-variant-numeric:tabular-nums}
+.tchip.on{background:var(--star);border-color:var(--star);color:#231a00}
+.tbar{position:absolute;left:18px;right:18px;top:14px;height:8px;border-radius:4px;background:#ffffff14;overflow:hidden}
+.tbar i{display:block;height:100%;width:100%;border-radius:4px;background:linear-gradient(90deg,#5ee0a8,#74b9ff)}
+.tbar.low i{background:linear-gradient(90deg,#ff8670,#ffb35c);animation:tlow .5s ease-in-out infinite alternate}
+@keyframes tlow{to{opacity:.55}}
+
+/* ===== v6: space background on the start screens ===== */
+#space{position:fixed;inset:0;z-index:-3;pointer-events:none;opacity:0;transition:opacity .8s ease;overflow:hidden;
+  background:radial-gradient(60% 40% at 85% 12%,#3b2a7a55,transparent 70%),radial-gradient(55% 35% at 10% 55%,#1f4f8a44,transparent 70%),
+  radial-gradient(70% 45% at 70% 95%,#6a2a6a40,transparent 70%),linear-gradient(180deg,#070b22,#0c1230 55%,#120d33)}
+body.space #space{opacity:1}
+#space svg{position:absolute;inset:0;width:100%;height:100%}
+#space .tw{animation:tw var(--d,4s) ease-in-out var(--l,0s) infinite alternate}
+@keyframes tw{from{opacity:var(--o,.8)}to{opacity:.15}}
+#space .cline{stroke:#9fb4ff;stroke-opacity:.22;stroke-width:1;stroke-dasharray:3 4;fill:none}
+#space .csym{font-family:var(--display);font-weight:800;text-anchor:middle;dominant-baseline:central}
+#space .cname{font-family:var(--body);font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;fill:#97a3d0;fill-opacity:.55}
+#space .cstar{animation:pulse var(--d,5s) ease-in-out var(--l,0s) infinite alternate}
+@keyframes pulse{from{opacity:.95}to{opacity:.55}}
+@media (prefers-reduced-motion:reduce){#space .tw,#space .cstar{animation:none}}
