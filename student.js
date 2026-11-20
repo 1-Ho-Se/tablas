@@ -186,7 +186,7 @@ function next(){clearTimeout(freezeTimer);stopLimit();if(G.mode==='round'&&G.idx
   if(op==='m'||op==='a'){const r=OPS[op].res(x,y);q.ans=missing?y:r;html=missing?`${x} ${sym} <span class="gap">?</span> = ${r}`:`${x} ${sym} ${y}`;shown=`${x} ${sym} ${y} = ${r}`}
   else if(op==='s'){const tot=a+b;q.ans=y;q.x=x;html=`${tot} − ${x}`;shown=`${tot} − ${x} = ${y}`}
   else{const p=a*b;q.ans=y;q.x=x;html=`${p} ÷ ${x}`;shown=`${p} ÷ ${x} = ${y}`}
-  q.shown=shown;G.q=q;G.input='';G.locked=false;
+  q.shown=shown;G.q=q;G.input='';G.edited=false;G.locked=false;
   $('#q').innerHTML=html;$('#ans').textContent='';$('#fb').textContent='';$('#fb').className='fb';$('#card').className='card';
   hud();
   if(c.intro){const now=Date.now();U.facts[k]={b:1,a:0,w:0,t:0,l:now,d:now,up:0};touch(k);G.introduced.push(k);G.retry.push({k,at:G.idx+3});
@@ -211,8 +211,10 @@ function hud(bump){const n=G.streak;$('#streakIcon').innerHTML=flameFor(n);$('#s
     $('#playInfo').textContent=`${OPS[G.ops[0]].fun} · ${Math.min(G.idx+1,ROUND)} de ${ROUND}`}
   else $('#playInfo').textContent=`Operaciones: ${G.results.filter(r=>r.ok).length} · Récord ${G.startBest.run}`}
 function press(k){if(cur!=='play'||!G||G.locked)return;
-  if(k==='del')G.input=G.input.slice(0,-1);else if(k==='ok'){if(G.input)submit();return}else if(G.input.length<3)G.input+=k;
-  $('#ans').textContent=G.input}
+  if(k==='del'){G.input=G.input.slice(0,-1);G.edited=true}else if(k==='ok'){if(G.input)submit();return}else if(G.input.length<3)G.input+=k;
+  $('#ans').textContent=G.input;
+  /* typed the right answer without erasing anything: accept it right away, no OK needed */
+  if(k!=='del'&&!G.edited&&parseInt(G.input,10)===G.q.ans)submit()}
 $('#pad').addEventListener('click',e=>{const b=e.target.closest('[data-k]');if(b)press(b.dataset.k)});
 document.addEventListener('keydown',e=>{if(cur!=='play'||!G)return;
   if(!$('#intro').hidden&&(e.key==='Enter'||e.key===' ')){e.preventDefault();$('#introOk').click();return}
