@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Constelación × · Tutor</title>
+<meta name="theme-color" content="#0C1230">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;700;800&family=Nunito+Sans:wght@400;600;800&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<section class="view" id="v-login">
+  <div>
+    <p class="eyebrow">Panel del tutor</p>
+    <h1>Constelación ×</h1>
+    <p class="muted">Entra con tu correo para ver a tus estudiantes en vivo.</p>
+  </div>
+  <form class="panel" id="loginForm">
+    <label class="small muted" for="email">Correo</label>
+    <input type="email" id="email" autocomplete="email" required>
+    <label class="small muted" for="password">Contraseña</label>
+    <input type="password" id="password" autocomplete="current-password" minlength="6" required>
+    <div class="row">
+      <button class="btn primary" type="submit" id="loginBtn">Entrar</button>
+      <button class="btn" type="button" id="signupBtn">Crear cuenta</button>
+    </div>
+    <p class="status" id="loginMsg"></p>
+  </form>
+</section>
+
+<!-- ============ LIST ============ -->
+<section class="view wide" id="v-list" hidden>
+  <div class="spread">
+    <span class="sync" id="liveState"><i></i><span>Conectando…</span></span>
+    <button class="link" type="button" id="logoutBtn">Cerrar sesión</button>
+  </div>
+  <div>
+    <p class="eyebrow" id="todayLabel"></p>
+    <h1>Mis estudiantes</h1>
+    <p class="muted" id="todaySummary"></p>
+  </div>
+  <div class="grid2" id="students"></div>
+  <div class="panel">
+    <h3>Código de tu clase</h3>
+    <p class="small muted">Tus estudiantes crean su propia cuenta en la app con este código. Así aparecen aquí solos.</p>
+    <div class="row"><span class="codebig" id="classCode">······</span><button class="btn" type="button" id="copyClass">Copiar instrucciones</button></div>
+    <p class="status" id="classMsg"></p>
+  </div>
+</section>
+
+<!-- ============ STUDENT ============ -->
+<section class="view wide" id="v-student" hidden>
+  <button class="link" type="button" id="stuBack">← Todos los estudiantes</button>
+  <div class="spread">
+    <div><p class="eyebrow" id="stuUpdated"></p><h1 id="stuName"></h1></div>
+    <span id="stuLive"></span>
+  </div>
+  <div class="stats" id="stuStats"></div>
+  <div class="stats" id="stuOps"></div>
+  <div class="cols">
+    <div class="panel">
+      <div class="spread"><h3>Práctica diaria</h3><span class="small muted" id="calLegend"></span></div>
+      <div class="cal" id="cal"></div>
+      <div class="legend"><span><i class="c2"></i>Cumplió la meta</span><span><i class="c1"></i>Practicó menos</span><span><i class="c0"></i>No practicó</span></div>
+    </div>
+    <div class="panel">
+      <h3>Cuenta y meta</h3>
+      <label class="small muted" for="noteIn">Nombre real (solo lo ves tú)</label>
+      <div class="row"><input type="text" id="noteIn" maxlength="40" style="flex:1;min-width:160px"><button class="btn" type="button" id="noteSave">Guardar</button></div>
+      <label class="small muted" for="goalIn">Minutos de práctica por día</label>
+      <div class="row"><input type="number" id="goalIn" min="1" max="120"><button class="btn" type="button" id="goalSave">Guardar meta</button></div>
+      <label class="small muted" for="passIn">Nueva contraseña si la olvidó</label>
+      <div class="row"><input type="text" id="passIn" maxlength="72" autocomplete="off" style="flex:1;min-width:160px"><button class="btn" type="button" id="passSave">Cambiar contraseña</button></div>
+      <p class="status" id="acctMsg"></p>
+    </div>
+  </div>
+  <div class="cols">
+    <div class="panel">
+      <div class="spread"><h3>Tabla completa</h3><div class="tabs" id="heatTabs" style="padding:3px"></div></div>
+      <div class="heat" id="heat"></div>
+      <div class="legend">
+        <span><i class="t-dom"></i>Domina</span><span><i class="t-mej"></i>Mejorando</span><span><i class="t-ref"></i>Necesita refuerzo</span><span><i class="t-none"></i>Sin ver</span>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+      <div class="panel"><h3>Necesita refuerzo</h3><div class="chips" id="stuRef"></div></div>
+      <div class="panel"><h3>Mejoró en los últimos 7 días</h3><div class="chips" id="stuUp"></div></div>
+      <div class="panel"><h3>Domina</h3><div class="chips" id="stuDom"></div></div>
+    </div>
+  </div>
+  <div class="panel">
+    <h3>Rondas recientes</h3>
+    <div class="tbl"><table><thead><tr><th>Fecha</th><th>Modo</th><th>Duración</th><th>Preguntas</th><th>Aciertos</th><th>De memoria</th><th>Tiempo medio</th><th>Mejor racha</th><th>Tokens</th></tr></thead><tbody id="stuSess"></tbody></table></div>
+  </div>
+  <div class="row"><button class="btn danger" type="button" id="stuDel">Eliminar estudiante</button></div>
+</section>
+
+<script src="config.js"></script>
+<script src="vendor/supabase.js"></script>
+<script src="common.js"></script>
+<script src="tutor.js"></script>
+</body>
+</html>

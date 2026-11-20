@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Constelación ×</title>
+<meta name="theme-color" content="#0C1230">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;700;800&family=Nunito+Sans:wght@400;600;800&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ AUTH ============ -->
+<section class="view" id="v-auth">
+  <div>
+    <p class="eyebrow">Suma, resta, multiplica y divide</p>
+    <h1>Constelación ×</h1>
+    <p class="muted">Cada operación es una estrella. Respóndela rápido y bien, y se enciende.</p>
+  </div>
+  <div id="storeWarn" class="banner" hidden>Este navegador no está guardando datos. Abre la app en el navegador normal, no en modo incógnito.</div>
+  <div class="tabs" role="tablist">
+    <button type="button" class="tab on" id="tabLogin" role="tab" aria-selected="true">Entrar</button>
+    <button type="button" class="tab" id="tabSignup" role="tab" aria-selected="false">Crear cuenta</button>
+  </div>
+  <form class="panel" id="loginForm">
+    <div class="chips" id="knownUsers"></div>
+    <label class="small muted" for="lUser">Usuario</label>
+    <input type="text" id="lUser" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20" required>
+    <label class="small muted" for="lPass">Contraseña</label>
+    <input type="password" id="lPass" autocomplete="current-password" maxlength="72" required>
+    <button class="btn primary" type="submit" id="lBtn">Entrar</button>
+    <p class="status" id="lMsg"></p>
+  </form>
+  <form class="panel" id="signupForm" hidden>
+    <label class="small muted" for="sClass">Código de tu tutor</label>
+    <input type="text" id="sClass" class="codein" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABC123" required>
+    <label class="small muted" for="sUser">Inventa un usuario (letras, números, punto o guion bajo)</label>
+    <input type="text" id="sUser" autocomplete="username" autocapitalize="none" spellcheck="false" minlength="3" maxlength="20" required>
+    <label class="small muted" for="sPass">Inventa una contraseña (mínimo 4)</label>
+    <input type="password" id="sPass" autocomplete="new-password" minlength="4" maxlength="72" required>
+    <label class="small muted" for="sPass2">Repítela</label>
+    <input type="password" id="sPass2" autocomplete="new-password" minlength="4" maxlength="72" required>
+    <p class="small muted">No uses tu nombre completo ni tu correo. Si olvidas la contraseña, tu tutor te pone una nueva.</p>
+    <button class="btn primary" type="submit" id="sBtn">Crear cuenta</button>
+    <p class="status" id="sMsg"></p>
+  </form>
+</section>
+
+<!-- ============ HOME ============ -->
+<section class="view" id="v-home" hidden>
+  <div class="hud">
+    <div class="who"><b id="homeUser"></b><button class="link" type="button" id="logoutBtn">Salir</button></div>
+    <div class="tokens" id="homeTokens" title="Tokens: ven la respuesta y pasa a la siguiente"></div>
+  </div>
+  <div class="spread"><span class="sync" id="syncState"><i></i><span></span></span><span class="combo" id="streakDays"></span></div>
+  <div class="panel">
+    <div class="spread"><h3>Meta de hoy</h3><span class="small muted" id="goalText"></span></div>
+    <div class="meter"><i id="goalFill"></i></div>
+  </div>
+  <div class="panel">
+    <h3>Elige qué practicar</h3>
+    <div class="opgrid" id="opTabs"></div>
+    <div class="skyhead"><h2 id="skyTitle"></h2><span><span class="bignum" id="litCount">0</span> <span class="muted">de 45 estrellas</span></span></div>
+    <div class="sky" id="sky"></div>
+    <p class="small muted">Las estrellas que titilan te están esperando para un repaso.</p>
+    <button class="btn primary big" type="button" id="playBtn">Jugar ronda</button>
+  </div>
+  <div class="panel inf">
+    <div class="spread"><h2>Modo infinito</h2><span class="small muted">Juega hasta que falles</span></div>
+    <div class="records">
+      <div class="rec"><span class="small muted">Récord de operaciones</span><b id="recRun">0</b></div>
+      <div class="rec"><span class="small muted">Récord de racha</span><b id="recStreak"></b></div>
+    </div>
+    <p class="small muted">¿Qué operaciones quieres que salgan?</p>
+    <div class="chips" id="infOps"></div>
+    <button class="btn primary big" type="button" id="infBtn">Jugar infinito</button>
+  </div>
+</section>
+
+<!-- ============ PLAY ============ -->
+<section class="view" id="v-play" hidden>
+  <div class="hud">
+    <div class="streak" id="streakBox" aria-live="polite"><span id="streakIcon"></span><b id="streakNum">0</b></div>
+    <button class="tokens" type="button" id="tokenBtn" aria-label="Usar un token"></button>
+  </div>
+  <div class="spread">
+    <button class="link" type="button" id="quitBtn">Salir</button>
+    <span class="small muted" id="playInfo"></span>
+  </div>
+  <div class="dots" id="dots"></div>
+  <div class="card" id="card">
+    <div class="tokentip" id="tokenTip" hidden>Toca otra vez para usar 1 token y ver la respuesta</div>
+    <div class="q" id="q"></div>
+    <div class="ans" id="ans"></div>
+    <div class="fb" id="fb"></div>
+    <div class="overlay" id="intro" hidden>
+      <span class="tag new">Estrella nueva</span>
+      <div class="q" id="introQ"></div>
+      <p class="hint" id="introHint"></p>
+      <button class="btn primary" type="button" id="introOk">Listo, pregúntame</button>
+    </div>
+    <div class="overlay" id="wrong" hidden>
+      <span class="tag err" id="wrongTag">Casi</span>
+      <div class="q" id="wrongQ"></div>
+      <p class="hint" id="wrongHint"></p>
+      <p class="small muted" id="wrongNote">Te la vuelvo a preguntar en un ratito.</p>
+      <button class="btn primary" type="button" id="wrongOk">Seguir</button>
+    </div>
+  </div>
+  <div class="pad" id="pad">
+    <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
+    <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button>
+    <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button>
+    <button type="button" data-k="del" aria-label="Borrar">⌫</button><button type="button" data-k="0">0</button><button type="button" data-k="ok" class="ok" aria-label="Responder">OK</button>
+  </div>
+</section>
+
+<!-- ============ END ============ -->
+<section class="view" id="v-end" hidden>
+  <div class="hud">
+    <span></span>
+    <div class="tokens" id="endTokens"></div>
+  </div>
+  <div>
+    <p class="eyebrow" id="endEyebrow">Ronda terminada</p>
+    <h1 id="endTitle"></h1>
+    <p class="muted" id="endGoal"></p>
+  </div>
+  <div class="banner win" id="endBanner" hidden></div>
+  <div class="stats" id="endStats"></div>
+  <div class="panel" id="eNewWrap"><h3>Estrellas nuevas</h3><div class="chips" id="eNew"></div></div>
+  <div class="panel" id="eMissWrap"><h3>Para repasar</h3><div class="chips" id="eMiss"></div></div>
+  <button class="btn primary big" type="button" id="againBtn">Otra vez</button>
+  <button class="btn" type="button" id="endHome">Volver al inicio</button>
+</section>
+
+<script src="config.js"></script>
+<script src="vendor/supabase.js"></script>
+<script src="common.js"></script>
+<script src="effects.js"></script>
+<script src="student.js"></script>
+<script>if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));</script>
+</body>
+</html>
