@@ -52,35 +52,77 @@
   </form>
 </section>
 
-<!-- ============ HOME ============ -->
+<!-- ============ HOME (main menu) ============ -->
 <section class="view" id="v-home" hidden>
   <div class="hud">
-    <div class="who"><b id="homeUser"></b><button class="link" type="button" id="logoutBtn">Salir</button></div>
+    <button class="playerchip" type="button" id="toProfile" aria-label="Ver mi galaxia"><span class="avatar" id="homeAvatar"></span><b id="homeUser"></b></button>
     <div class="tokens" id="homeTokens" title="Tokens: ven la respuesta y pasa a la siguiente"></div>
   </div>
-  <div class="spread"><span class="sync" id="syncState"><i></i><span></span></span><span class="combo" id="streakDays"></span></div>
-  <div class="panel">
-    <div class="spread"><h3>Meta de hoy</h3><span class="small muted" id="goalText"></span></div>
-    <div class="meter"><i id="goalFill"></i></div>
+  <div class="logo">
+    <p class="eyebrow">Suma · Resta · Multiplica · Divide</p>
+    <h1 class="logotitle">Constelación <span>×</span></h1>
+    <div class="goalmini"><div class="meter"><i id="goalFill"></i></div><span class="small" id="goalText"></span></div>
+  </div>
+  <div class="menu">
+    <div class="modes">
+      <button type="button" class="modebtn mission" id="mMission"><span class="mname">Misión estelar</span><span class="mdesc">20 preguntas · enciende estrellas</span></button>
+      <button type="button" class="modebtn orbit" id="mOrbit"><span class="mname">Órbita infinita</span><span class="mdesc" id="orbitDesc">Hasta que falles</span></button>
+    </div>
+    <nav class="rail" aria-label="Más opciones">
+      <button type="button" class="railbtn" id="rProfile" aria-label="Mi galaxia"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v3a5 5 0 0 1-10 0V4z" fill="#ffd36e"/><path d="M7 5H4v1a3 3 0 0 0 3 3M17 5h3v1a3 3 0 0 1-3 3" fill="none" stroke="#ffd36e" stroke-width="1.6"/><path d="M10 12h4v4h-4zM8 17h8v3H8z" fill="#ffd36e"/></svg><span>Mi galaxia</span></button>
+      <button type="button" class="railbtn" id="rSettings" aria-label="Ajustes"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#9fc4ff" d="M19.4 13a7.5 7.5 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7 7 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.5 7.5 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.3 2.5h4l.4-2.5a7 7 0 0 0 1.7-1l2.4 1 2-3.4zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg><span>Ajustes</span></button>
+    </nav>
+  </div>
+  <p class="sync center" id="syncState"><i></i><span></span></p>
+</section>
+
+<!-- ============ MISSION: pick operation ============ -->
+<section class="view" id="v-mission" hidden>
+  <div class="hud"><button class="link" type="button" data-back>← Menú</button><div class="tokens" data-tokens></div></div>
+  <div><p class="eyebrow">Misión estelar · 20 preguntas</p><h1>Elige tu misión</h1></div>
+  <div class="opcards" id="missionOps"></div>
+</section>
+
+<!-- ============ ORBIT: infinite config ============ -->
+<section class="view" id="v-orbit" hidden>
+  <div class="hud"><button class="link" type="button" data-back>← Menú</button><div class="tokens" data-tokens></div></div>
+  <div><p class="eyebrow">Órbita infinita · hasta que falles</p><h1>Prepara tu órbita</h1></div>
+  <div class="records">
+    <div class="rec"><span class="small muted">Récord de operaciones</span><b id="recRun">0</b></div>
+    <div class="rec"><span class="small muted">Récord de racha</span><b id="recStreak"></b></div>
   </div>
   <div class="panel">
-    <h3>Elige qué practicar</h3>
-    <div class="opgrid" id="opTabs"></div>
+    <h3>¿Qué operaciones quieres que salgan?</h3>
+    <div class="opcards small" id="infOps"></div>
+  </div>
+  <button class="btn primary big" type="button" id="infBtn">Despegar</button>
+</section>
+
+<!-- ============ PROFILE: my galaxy ============ -->
+<section class="view" id="v-profile" hidden>
+  <div class="hud"><button class="link" type="button" data-back>← Menú</button><div class="tokens" data-tokens></div></div>
+  <div class="spread"><div><p class="eyebrow">Mi galaxia</p><h1 id="profUser"></h1></div><span class="combo" id="streakDays"></span></div>
+  <div class="stats" id="profStats"></div>
+  <div class="panel">
+    <div class="tabs" id="opTabs"></div>
     <div class="skyhead"><h2 id="skyTitle"></h2><span><span class="bignum" id="litCount">0</span> <span class="muted">de 45 estrellas</span></span></div>
     <div class="sky" id="sky"></div>
-    <p class="small muted">Las estrellas que titilan te están esperando para un repaso.</p>
-    <button class="btn primary big" type="button" id="playBtn">Jugar ronda</button>
+    <p class="small muted">Cada estrella es una operación. Brilla cuando la dominas. Las que titilan te esperan para un repaso.</p>
   </div>
-  <div class="panel inf">
-    <div class="spread"><h2>Modo infinito</h2><span class="small muted">Juega hasta que falles</span></div>
-    <div class="records">
-      <div class="rec"><span class="small muted">Récord de operaciones</span><b id="recRun">0</b></div>
-      <div class="rec"><span class="small muted">Récord de racha</span><b id="recStreak"></b></div>
-    </div>
-    <p class="small muted">¿Qué operaciones quieres que salgan?</p>
-    <div class="chips" id="infOps"></div>
-    <button class="btn primary big" type="button" id="infBtn">Jugar infinito</button>
+</section>
+
+<!-- ============ SETTINGS ============ -->
+<section class="view" id="v-settings" hidden>
+  <div class="hud"><button class="link" type="button" data-back>← Menú</button><span></span></div>
+  <h1>Ajustes</h1>
+  <div class="panel">
+    <label class="switchrow" for="fxToggle"><span><b>Efectos de fuego y hielo</b><br><span class="small muted">Apágalos si el teléfono va lento.</span></span><input type="checkbox" id="fxToggle" role="switch"></label>
   </div>
+  <div class="panel">
+    <h3>Cómo se juega</h3>
+    <p class="small muted">Responde bien y rápido para encender estrellas. Tres respuestas seguidas en menos de 3 segundos prenden la racha. Un token te muestra la respuesta y pasa a la siguiente. Cada misión perfecta te da medio token.</p>
+  </div>
+  <button class="btn danger" type="button" id="logoutBtn">Cerrar sesión</button>
 </section>
 
 <!-- ============ PLAY ============ -->
@@ -127,6 +169,7 @@
     <span></span>
     <div class="tokens" id="endTokens"></div>
   </div>
+  <div class="tokenwin" id="tokenWin" hidden><div class="burst"></div><div class="bigcoin"></div><b>¡Ganaste un token!</b></div>
   <div>
     <p class="eyebrow" id="endEyebrow">Ronda terminada</p>
     <h1 id="endTitle"></h1>
@@ -137,7 +180,7 @@
   <div class="panel" id="eNewWrap"><h3>Estrellas nuevas</h3><div class="chips" id="eNew"></div></div>
   <div class="panel" id="eMissWrap"><h3>Para repasar</h3><div class="chips" id="eMiss"></div></div>
   <button class="btn primary big" type="button" id="againBtn">Otra vez</button>
-  <button class="btn" type="button" id="endHome">Volver al inicio</button>
+  <button class="btn" type="button" id="endHome">Volver al menú</button>
 </section>
 
 <script src="config.js"></script>

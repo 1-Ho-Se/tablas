@@ -15,6 +15,10 @@ if(!storeOK)$('#storeWarn').hidden=false;
 function blankUser(username){return{username,token:null,id:null,goal:10,facts:{},dirty:[],pending:[],log:[],srv:{tokens:3,best_run:0,best_streak:0},op:'m',infOps:['m']}}
 
 let cur='auth', U=null, G=null;
+const fxOn=()=>S.fx!==false;
+const fxSet=(t,n)=>{if(fxOn())FX.set(t,n);else FX.set(null)};
+const fxFreeze=()=>{if(fxOn())FX.freeze()};
+const fxFizzle=()=>{if(fxOn())FX.fizzle()};
 function show(v){document.querySelectorAll('.view').forEach(e=>e.hidden=e.id!=='v-'+v);cur=v;window.scrollTo(0,0)}
 
 /* ---------- derived numbers ---------- */
@@ -22,7 +26,11 @@ function tokensOf(u){let t=u.srv.tokens;u.pending.forEach(s=>{if(s.pf)t+=.5;t-=s
 const bestRun=u=>Math.max(u.srv.best_run,...u.pending.filter(s=>s.mode==='inf').map(s=>s.c),0);
 const bestStreak=u=>Math.max(u.srv.best_streak,...u.pending.map(s=>s.mk||0),0);
 const minutesToday=u=>u.log.filter(s=>dayKey(s.s)===dayKey()).reduce((a,s)=>a+Math.max(0,(s.e-s.s)/6e4),0);
-function tokenHTML(t){return`<svg class="coin" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#ffd36e"/><circle cx="12" cy="12" r="7.2" fill="none" stroke="#b8860b" stroke-width="1.6"/><path d="M12 7.5l1.4 2.9 3.1.4-2.3 2.2.6 3.1-2.8-1.5-2.8 1.5.6-3.1-2.3-2.2 3.1-.4z" fill="#b8860b"/></svg><b>${fmtTokens(t)}</b>`}
+const COIN='<svg class="coin" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#ffd36e"/><circle cx="12" cy="12" r="7.2" fill="none" stroke="#b8860b" stroke-width="1.6"/><path d="M12 7.5l1.4 2.9 3.1.4-2.3 2.2.6 3.1-2.8-1.5-2.8 1.5.6-3.1-2.3-2.2 3.1-.4z" fill="#b8860b"/></svg>';
+/* whole tokens as a number, plus two bars underneath: each bar is half a token */
+function tokenHTML(t,halfOverride){const whole=Math.floor(t+1e-9),half=halfOverride!=null?halfOverride:(t-whole>=.5-1e-9?1:0);
+  return`${COIN}<span class="tcol"><b>${whole}</b><span class="halves" aria-label="${half} de 2 mitades"><i class="${half>=1?'on':''}"></i><i class="${half>=2?'on':''}"></i></span></span>`}
+function paintTokens(){const t=tokensOf(U);document.querySelectorAll('#homeTokens,[data-tokens]').forEach(el=>el.innerHTML=tokenHTML(t))}
 function flameFor(n){const t=tierOf(n);return flameSVG(t?(t.id==='rainbow'?'rainbow':t.color):'#5b6699')}
 
 /* ---------- sync ---------- */
@@ -43,7 +51,7 @@ async function sync(){const u=U;if(!u||!u.token||!sb)return;if(syncing){again=tr
     u.dirty=u.dirty.filter(k=>!(k in sentL)||!u.facts[k]||u.facts[k].l!==sentL[k]);
     const ids=new Set(sessions.map(s=>s.id));u.pending=u.pending.filter(s=>!ids.has(s.id));
     applyServer(u,data);save();setSync('on');
-    if(cur==='home'&&U===u)renderHome();
+    if(U===u&&!G)renderMenus();
   }catch(err){
     if(String(err&&err.message).includes('sesion_invalida')){u.token=null;save();if(U===u&&!G){U=null;S.current=null;save();renderAuth('Tu sesión se cerró. Entra otra vez con tu usuario y contraseña.');show('auth')}}
     else setSync('off')}
@@ -69,7 +77,7 @@ const ERR={credenciales:'Usuario o contraseña incorrectos.',bloqueado:'Demasiad
   clase_invalida:'Ese código de tutor no existe. Revísalo.',usuario_existe:'Ese usuario ya existe. Inventa otro.',usuario_invalido:'El usuario debe tener de 3 a 20 letras o números, sin espacios.',clave_corta:'La contraseña debe tener al menos 4 caracteres.'};
 function errText(err){const m=String(err&&err.message||'');for(const k in ERR)if(m.includes(k))return ERR[k];return'No hay conexión. Necesitas internet para entrar.'}
 async function enter(username,token){const u=S.users[username]||blankUser(username);u.token=token;S.users[username]=u;S.current=username;U=u;save();
-  await sync();renderHome();show('home')}
+  show('home');renderHome();await sync();renderMenus()}
 $('#loginForm').addEventListener('submit',async e=>{e.preventDefault();const m=$('#lMsg');if(!sb)return;
   const user=cleanUser($('#lUser').value),pass=$('#lPass').value;$('#lBtn').disabled=true;m.className='status';m.textContent='Entrando…';
   try{const {data,error}=await sb.rpc('student_login',{p_username:user,p_password:pass});if(error)throw error;$('#lPass').value='';m.textContent='';await enter(user,data)}
@@ -87,32 +95,48 @@ $('#logoutBtn').addEventListener('click',async()=>{const u=U;if(!u)return;
   u.token=null;U=null;S.current=null;save();
   renderAuth(u.pending.length?'Quedó progreso sin subir. Se sube cuando vuelvas a entrar con internet.':'');$('#lMsg').className='status';show('auth')});
 
-/* ---------- home ---------- */
+/* ---------- menus ---------- */
 function skyLevel(r,now){if(!r)return's0';let c=r.b>=4?'s3':r.b>=2?'s2':'s1';if(r.b>=2&&r.d<=now)c+=' due';return c}
-function renderHome(){const u=U,now=Date.now();
-  $('#homeUser').textContent=u.username;$('#homeTokens').innerHTML=tokenHTML(tokensOf(u));
-  const st=streak(new Set(u.log.map(s=>dayKey(s.s))));$('#streakDays').textContent=st>1?st+' días seguidos':'';
+function renderMenus(){if(!U)return;paintTokens();
+  if(cur==='home')renderHome();else if(cur==='mission')renderMission();else if(cur==='orbit')renderOrbit();else if(cur==='profile')renderProfile();else if(cur==='settings')renderSettings()}
+function go(v){show(v);renderMenus()}
+function renderHome(){const u=U;paintTokens();
+  $('#homeUser').textContent=u.username;$('#homeAvatar').textContent=u.username[0].toUpperCase();
   const mins=Math.round(minutesToday(u)),goal=u.goal||10;
   $('#goalFill').style.width=Math.min(100,mins/goal*100)+'%';$('#goalFill').classList.toggle('done',mins>=goal);
-  $('#goalText').textContent=mins>=goal?`¡Cumplida! ${mins} de ${goal} min`:`${mins} de ${goal} min`;
-  $('#opTabs').innerHTML=OP_LIST.map(op=>`<button type="button" class="opbtn${u.op===op?' on':''}" data-op="${op}"><span class="sym">${OPS[op].sym}</span><span>${OPS[op].name}</span><span class="small muted">${mastered(u.facts,op)}/45 ★</span></button>`).join('');
-  const op=u.op;$('#skyTitle').textContent=OPS[op].name;$('#litCount').textContent=mastered(u.facts,op);
-  let h='';for(let r=2;r<=10;r++)for(let c=2;c<=10;c++){const k=keyOf(op,r,c),rec=u.facts[k];h+=`<div class="cell ${skyLevel(rec,now)}" title="${r} ${OPS[op].sym} ${c}">${rec?OPS[op].res(r,c):''}</div>`}
-  $('#sky').innerHTML=h;$('#playBtn').textContent='Jugar ronda de '+OPS[op].name.toLowerCase();
-  $('#recRun').textContent=bestRun(u);const bs=bestStreak(u);$('#recStreak').innerHTML=`${flameFor(bs)}<span>${bs}</span>`;
-  $('#infOps').innerHTML=OP_LIST.map(o=>`<button type="button" class="chip toggle${u.infOps.includes(o)?' on':''}" data-io="${o}" aria-pressed="${u.infOps.includes(o)}">${OPS[o].sym} ${OPS[o].name}</button>`).join('');
-  $('#infBtn').disabled=!u.infOps.length;
+  $('#goalText').textContent=mins>=goal?`Meta de hoy cumplida: ${mins} de ${goal} min`:`Meta de hoy: ${mins} de ${goal} min`;
+  $('#orbitDesc').textContent=`Hasta que falles · récord ${bestRun(u)}`;
   if(!u.token)setSync('off','Sin sesión');else setSync(syncStatus)}
-$('#opTabs').addEventListener('click',e=>{const b=e.target.closest('[data-op]');if(b){U.op=b.dataset.op;save();renderHome()}});
-$('#infOps').addEventListener('click',e=>{const b=e.target.closest('[data-io]');if(!b)return;const o=b.dataset.io;
-  U.infOps=U.infOps.includes(o)?U.infOps.filter(x=>x!==o):[...U.infOps,o].sort((a,b)=>OP_LIST.indexOf(a)-OP_LIST.indexOf(b));save();renderHome()});
-$('#playBtn').addEventListener('click',()=>start('round',[U.op]));
+function opCard(op,extra,on){return`<button type="button" class="opcard op-${op}${on?' on':''}" data-op="${op}" ${extra||''}><span class="sym">${OPS[op].sym}</span><span class="otext"><b>${OPS[op].fun}</b><span class="small">${OPS[op].name}</span></span><span class="ostars">${mastered(U.facts,op)}<small>/45 ★</small></span></button>`}
+function renderMission(){paintTokens();$('#missionOps').innerHTML=OP_LIST.map(op=>opCard(op)).join('')}
+function renderOrbit(){const u=U;paintTokens();$('#recRun').textContent=bestRun(u);const bs=bestStreak(u);$('#recStreak').innerHTML=`${flameFor(bs)}<span>${bs}</span>`;
+  $('#infOps').innerHTML=OP_LIST.map(op=>opCard(op,`aria-pressed="${u.infOps.includes(op)}"`,u.infOps.includes(op))).join('');
+  $('#infBtn').disabled=!u.infOps.length;$('#infBtn').textContent=u.infOps.length?'Despegar':'Elige al menos una'}
+function renderProfile(){const u=U,now=Date.now();paintTokens();$('#profUser').textContent=u.username;
+  const st=streak(new Set(u.log.map(s=>dayKey(s.s))));$('#streakDays').textContent=st>1?st+' días seguidos':'';
+  const mins=Math.round(minutesToday(u)),goal=u.goal||10,bs=bestStreak(u);
+  const total=OP_LIST.reduce((a,op)=>a+mastered(u.facts,op),0);
+  $('#profStats').innerHTML=[['Estrellas',total+'/180'],['Hoy',`${mins}/${goal} min`],['Récord órbita',bestRun(u)],['Récord racha',`${flameFor(bs)}${bs}`]].map(([a,b])=>`<div class="stat"><span class="small muted">${a}</span><b>${b}</b></div>`).join('');
+  $('#opTabs').innerHTML=OP_LIST.map(op=>`<button type="button" class="tab${u.op===op?' on':''}" data-op="${op}" title="${OPS[op].fun}">${OPS[op].sym}</button>`).join('');
+  const op=u.op;$('#skyTitle').textContent=OPS[op].fun;$('#litCount').textContent=mastered(u.facts,op);
+  let h='';for(let r=2;r<=10;r++)for(let c=2;c<=10;c++){const k=keyOf(op,r,c),rec=u.facts[k];h+=`<div class="cell ${skyLevel(rec,now)}" title="${r} ${OPS[op].sym} ${c}">${rec?OPS[op].res(r,c):''}</div>`}
+  $('#sky').innerHTML=h}
+function renderSettings(){$('#fxToggle').checked=fxOn()}
+$('#toProfile').addEventListener('click',()=>go('profile'));$('#rProfile').addEventListener('click',()=>go('profile'));
+$('#rSettings').addEventListener('click',()=>go('settings'));
+$('#mMission').addEventListener('click',()=>go('mission'));$('#mOrbit').addEventListener('click',()=>go('orbit'));
+document.querySelectorAll('[data-back]').forEach(b=>b.addEventListener('click',()=>go('home')));
+$('#fxToggle').addEventListener('change',e=>{S.fx=e.target.checked;save()});
+$('#missionOps').addEventListener('click',e=>{const b=e.target.closest('[data-op]');if(b){U.op=b.dataset.op;save();start('round',[U.op])}});
+$('#opTabs').addEventListener('click',e=>{const b=e.target.closest('[data-op]');if(b){U.op=b.dataset.op;save();renderProfile()}});
+$('#infOps').addEventListener('click',e=>{const b=e.target.closest('[data-op]');if(!b)return;const o=b.dataset.op;
+  U.infOps=U.infOps.includes(o)?U.infOps.filter(x=>x!==o):[...U.infOps,o].sort((a,b)=>OP_LIST.indexOf(a)-OP_LIST.indexOf(b));save();renderOrbit()});
 $('#infBtn').addEventListener('click',()=>{if(U.infOps.length)start('inf',U.infOps.slice())});
 
 /* ---------- game ---------- */
 function touch(k){if(!U.dirty.includes(k))U.dirty.push(k)}
 let freezeTimer=null, tipTimer=null;
-function start(mode,ops){FX.set(null);
+function start(mode,ops){fxSet(null);
   G={id:window.T.uuid(),mode,ops,idx:0,retry:[],recent:[],introduced:[],results:[],ups:0,streak:0,maxStreak:0,tu:0,start:Date.now(),q:null,input:'',locked:false,lastIntro:false,startBest:{run:bestRun(U),streak:bestStreak(U)}};
   $('#dots').hidden=mode!=='round';$('#dots').innerHTML=mode==='round'?'<i></i>'.repeat(ROUND):'';
   show('play');hud();next();queueSync(300)}
@@ -148,13 +172,13 @@ function next(){clearTimeout(freezeTimer);if(G.mode==='round'&&G.idx>=ROUND)retu
   else shownNow()}
 /* while on a streak, taking longer than STREAK_MS freezes the fire right away */
 function shownNow(){G.q.t0=performance.now();clearTimeout(freezeTimer);
-  if(G.streak>=3)freezeTimer=setTimeout(()=>{if(G&&!G.locked&&G.streak>=3){G.streak=0;FX.freeze();hud(true)}},STREAK_MS)}
+  if(G.streak>=3)freezeTimer=setTimeout(()=>{if(G&&!G.locked&&G.streak>=3){G.streak=0;fxFreeze();hud(true)}},STREAK_MS)}
 $('#introOk').addEventListener('click',()=>{$('#intro').hidden=true;G.locked=false;shownNow()});
 function hud(bump){const n=G.streak;$('#streakIcon').innerHTML=flameFor(n);$('#streakNum').textContent=n;
   const t=tierOf(n);const box=$('#streakBox');box.className='streak'+(t?' lit t-'+t.id:'');if(bump){void box.offsetWidth;box.classList.add('bump')}
   $('#tokenBtn').innerHTML=tokenHTML(tokensOf(U));$('#tokenBtn').disabled=tokensOf(U)<1;
   if(G.mode==='round'){const ds=$('#dots').children;for(let i=0;i<ROUND;i++){const r=G.results[i];ds[i].className=r?(r.tok?'tok':r.ok?(r.fast?'ok':'slow'):'bad'):(i===G.idx?'now':'')}
-    $('#playInfo').textContent=`${OPS[G.ops[0]].name} · ${Math.min(G.idx+1,ROUND)} de ${ROUND}`}
+    $('#playInfo').textContent=`${OPS[G.ops[0]].fun} · ${Math.min(G.idx+1,ROUND)} de ${ROUND}`}
   else $('#playInfo').textContent=`Operaciones: ${G.results.filter(r=>r.ok).length} · Récord ${G.startBest.run}`}
 function press(k){if(cur!=='play'||!G||G.locked)return;
   if(k==='del')G.input=G.input.slice(0,-1);else if(k==='ok'){if(G.input)submit();return}else if(G.input.length<3)G.input+=k;
@@ -175,8 +199,8 @@ function submit(){G.locked=true;clearTimeout(freezeTimer);const el=performance.n
   const ok=parseInt(G.input,10)===q.ans,fast=ok&&el<=FAST,quick=ok&&el<=STREAK_MS;
   record(ok,fast,el);G.results.push({k:q.k,ok,fast,el});G.idx++;
   let bump=false;
-  if(quick){const before=tierOf(G.streak);G.streak++;G.maxStreak=Math.max(G.maxStreak,G.streak);const t=tierOf(G.streak);bump=!!t&&t!==before;FX.set(t,G.streak)}
-  else{if(G.streak>=3){ok?FX.freeze():FX.fizzle()}G.streak=0}
+  if(quick){const before=tierOf(G.streak);G.streak++;G.maxStreak=Math.max(G.maxStreak,G.streak);const t=tierOf(G.streak);bump=!!t&&t!==before;fxSet(t,G.streak)}
+  else{if(G.streak>=3){ok?fxFreeze():fxFizzle()}G.streak=0}
   save();hud(bump);queueSync();
   const fb=$('#fb');
   if(fast){fb.textContent=G.streak>=10?'¡En llamas!':G.streak>=5?'¡Imparable!':'¡Exacto!';fb.className='fb ok';$('#card').className='card good';setTimeout(next,450)}
@@ -195,25 +219,25 @@ $('#tokenBtn').addEventListener('click',()=>{if(!G||G.locked||tokensOf(U)<1)retu
   rec.l=now;rec.b=1;rec.d=now;touch(q.k);if(G.mode==='round')G.retry.push({k:q.k,at:G.idx+4});
   G.results.push({k:q.k,ok:false,tok:true,el:0});G.idx++;save();hud();queueSync();
   $('#ans').textContent=q.ans;$('#fb').textContent='Token usado: '+q.shown;$('#fb').className='fb tokfb';setTimeout(next,1800)});
-$('#quitBtn').addEventListener('click',()=>{clearTimeout(freezeTimer);FX.set(null);if(G&&G.results.length)finishSession();G=null;renderHome();show('home');sync()});
+$('#quitBtn').addEventListener('click',()=>{clearTimeout(freezeTimer);fxSet(null);if(G&&G.results.length)finishSession();G=null;go('home');sync()});
 function finishSession(){const R=G.results.filter(r=>!r.tok),c=R.filter(r=>r.ok),f=R.filter(r=>r.fast),now=Date.now();
   const n=G.results.length;
   const pf=G.mode==='round'&&n>=ROUND&&c.length===n&&G.tu===0;
   const s={id:G.id,s:G.start,e:now,mode:G.mode,ops:G.ops.join(''),n,c:c.length,f:f.length,ms:c.length?Math.round(c.reduce((a,r)=>a+r.el,0)/c.length):0,nw:G.introduced.length,mk:G.maxStreak,tu:G.tu,pf};
   U.pending.push(s);U.log.push({s:G.start,e:now});if(U.log.length>200)U.log=U.log.slice(-200);save();return s}
-function endGame(){clearTimeout(freezeTimer);FX.set(null);const s=finishSession(),inf=G.mode==='inf';
+function endGame(){clearTimeout(freezeTimer);fxSet(null);const s=finishSession(),inf=G.mode==='inf';
   const banners=[];
-  if(s.pf)banners.push('¡Ronda perfecta! Ganaste ½ token.');
+  if(s.pf)banners.push('¡Misión perfecta! Ganaste medio token.');
   if(inf&&s.c>G.startBest.run)banners.push(`¡Nuevo récord: ${s.c} operaciones!`);
   if(s.mk>G.startBest.streak&&s.mk>=3)banners.push(`¡Nuevo récord de racha: ${s.mk}!`);
   $('#endBanner').hidden=!banners.length;$('#endBanner').innerHTML=banners.map(esc).join('<br>');
-  $('#endEyebrow').textContent=inf?'Modo infinito':'Ronda de '+OPS[G.ops[0]].name.toLowerCase();
+  $('#endEyebrow').textContent=inf?'Órbita infinita':'Misión '+OPS[G.ops[0]].fun;
   $('#endTitle').textContent=inf?`${s.c} operaciones seguidas`:(s.c>=18?'¡Qué ronda, '+U.username+'!':s.c>=14?'Buen trabajo, '+U.username+'.':'Vas sumando, '+U.username+'.');
   const mins=Math.round(minutesToday(U)),goal=U.goal||10;$('#endGoal').textContent=mins>=goal?`Meta de hoy cumplida: ${mins} de ${goal} min.`:`Llevas ${mins} de ${goal} min hoy.`;
   const stats=inf?[['Operaciones',s.c],['Récord',Math.max(s.c,G.startBest.run)],['Mejor racha',`${flameFor(s.mk)}${s.mk}`]]
                  :[['Aciertos',s.c+'/'+s.n],['De memoria',s.f],['Mejor racha',`${flameFor(s.mk)}${s.mk}`]];
   $('#endStats').innerHTML=stats.map(([a,b])=>`<div class="stat"><span class="small muted">${a}</span><b>${b}</b></div>`).join('');
-  $('#endTokens').innerHTML=tokenHTML(tokensOf(U));
+  animateTokens(s.pf);
   const fmt=k=>{const[op,a,b]=parts(k);return op==='s'?`${a+b} − ${a} = ${b}`:op==='d'?`${a*b} ÷ ${a} = ${b}`:`${a} ${OPS[op].sym} ${b} = ${OPS[op].res(a,b)}`};
   $('#eNewWrap').hidden=inf||!G.introduced.length;$('#eNew').innerHTML=[...new Set(G.introduced)].map(k=>`<span class="chip ok">${fmt(k)}</span>`).join('');
   const miss=[...new Set(G.results.filter(r=>!r.ok).map(r=>r.k))];
@@ -221,10 +245,23 @@ function endGame(){clearTimeout(freezeTimer);FX.set(null);const s=finishSession(
   $('#againBtn').dataset.mode=G.mode;$('#againBtn').dataset.ops=G.ops.join('');
   G=null;show('end');sync()}
 $('#againBtn').addEventListener('click',e=>start(e.currentTarget.dataset.mode,e.currentTarget.dataset.ops.split('')));
-$('#endHome').addEventListener('click',()=>{renderHome();show('home')});
+$('#endHome').addEventListener('click',()=>go('home'));
+
+/* token reward: fill the next half bar; when both halves are full, pop a new token */
+let tokTimers=[];
+function animateTokens(earned){tokTimers.forEach(clearTimeout);tokTimers=[];$('#tokenWin').hidden=true;const el=$('#endTokens'),now=tokensOf(U);
+  if(!earned){el.innerHTML=tokenHTML(now);return}
+  const before=now-.5,whole=Math.floor(before+1e-9),hadHalf=before-whole>=.5-1e-9;
+  el.innerHTML=tokenHTML(before);
+  tokTimers.push(setTimeout(()=>{el.innerHTML=tokenHTML(before,hadHalf?2:1);const bars=el.querySelectorAll('.halves i');bars[hadHalf?1:0].classList.add('pop');
+    if(!hadHalf)return;
+    tokTimers.push(setTimeout(()=>{el.querySelector('.halves').classList.add('flash')},450));
+    tokTimers.push(setTimeout(()=>{$('#tokenWin').hidden=false;$('#tokenWin .bigcoin').innerHTML=COIN;el.innerHTML=tokenHTML(now);el.classList.remove('gain');void el.offsetWidth;el.classList.add('gain')},1100));
+    tokTimers.push(setTimeout(()=>{$('#tokenWin').hidden=true},3600))},700))}
+$('#tokenWin').addEventListener('click',()=>{$('#tokenWin').hidden=true});
 
 /* ---------- boot ---------- */
 setSync(sb?'wait':'off');
-if(S.current&&S.users[S.current]&&S.users[S.current].token){U=S.users[S.current];renderHome();show('home');queueSync(200)}
+if(S.current&&S.users[S.current]&&S.users[S.current].token){U=S.users[S.current];go('home');queueSync(200)}
 else{renderAuth();show('auth')}
 })();

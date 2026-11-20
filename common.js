@@ -4,10 +4,10 @@
 const DAY=864e5;
 /* Each operation has 45 fact families: pairs a<=b from 2..10. Key: op + a + '_' + b, e.g. "m7_8". */
 const OPS={
-  m:{name:'Multiplicación',short:'Multiplicar',sym:'×',res:(a,b)=>a*b},
-  d:{name:'División',short:'Dividir',sym:'÷',res:(a,b)=>a*b},
-  a:{name:'Suma',short:'Sumar',sym:'+',res:(a,b)=>a+b},
-  s:{name:'Resta',short:'Restar',sym:'−',res:(a,b)=>a+b}
+  m:{name:'Multiplicación',fun:'Supernova',tag:'Multiplica y haz explotar las estrellas',sym:'×',res:(a,b)=>a*b},
+  d:{name:'División',fun:'Lluvia de meteoros',tag:'Divide y parte los meteoros',sym:'÷',res:(a,b)=>a*b},
+  a:{name:'Suma',fun:'Fusión estelar',tag:'Suma y junta la energía',sym:'+',res:(a,b)=>a+b},
+  s:{name:'Resta',fun:'Agujero negro',tag:'Resta antes de que te trague',sym:'−',res:(a,b)=>a+b}
 };
 const OP_LIST=['m','d','a','s'];
 const PAIRS=[];for(let a=2;a<=10;a++)for(let b=a;b<=10;b++)PAIRS.push([a,b]);
