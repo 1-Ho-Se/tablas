@@ -1,7 +1,7 @@
 /* Constelación ×: student app. Username + password, plays offline, syncs to Supabase. */
 (function(){
 "use strict";
-const {DAY,OPS,OP_LIST,FACTS,parts,keyOf,ORDER,hint,tierOf,fmtTokens,esc,dayKey,mastered,streak,flameSVG}=window.T;
+const {DAY,OPS,OP_LIST,FACTS,parts,keyOf,ORDER,hint,tierOf,fmtTokens,esc,dayKey,mastered,dayStreak,flameSVG}=window.T;
 const $=s=>document.querySelector(s);
 const KEY='constelacion.app.v3', FAST=4000, STREAK_MS=3000, ROUND=20, TIMES=[5,8,10,15,20,30,0];
 const limitOf=u=>u.infTime==null?10:u.infTime;
@@ -43,7 +43,20 @@ document.addEventListener('dblclick',e=>e.preventDefault());
 function tokensOf(u){let t=u.srv.tokens;u.pending.forEach(s=>{if(s.pf)t+=.5;t-=s.tu||0});if(G&&u===U)t-=G.tu;return Math.max(0,t)}
 const bestRun=u=>Math.max(u.srv.best_run,...u.pending.filter(s=>s.mode==='inf').map(s=>s.c),0);
 const bestStreak=u=>Math.max(u.srv.best_streak,...u.pending.map(s=>s.mk||0),0);
-const minutesToday=u=>u.log.filter(s=>dayKey(s.s)===dayKey()).reduce((a,s)=>a+Math.max(0,(s.e-s.s)/6e4),0);
+/* minutes per day. The server sends every device's days (v8); sessions not uploaded yet are added on top.
+   Older servers send nothing, so we fall back to what this device played. */
+function dayMap(u){const m={},add=s=>{const k=dayKey(s.s);m[k]=(m[k]||0)+Math.max(0,(s.e-s.s)/6e4)};
+  if(u.srv.days){Object.assign(m,u.srv.days);u.pending.forEach(add)}else u.log.forEach(add);return m}
+const minutesToday=u=>dayMap(u)[dayKey()]||0;
+/* a day counts for the streak with 3 minutes of practice (or the whole goal, if the tutor set it lower) */
+const dayMin=u=>Math.min(3,u.goal||10);
+function dayInfo(u){const m=dayMap(u),thr=dayMin(u),has=new Set(Object.keys(m).filter(k=>m[k]>=thr-1e-6));return{...dayStreak(has),has,mins:m[dayKey()]||0,thr}}
+/* facts waiting for review now, and the ones that become ready by the end of tomorrow */
+function dueInfo(u){const now=Date.now(),e=new Date();e.setHours(0,0,0,0);const endTom=e.getTime()+2*DAY;let due=0,tom=0;const ops=new Set();
+  Object.keys(u.facts).forEach(k=>{const d=u.facts[k].d;if(d<=now){due++;ops.add(k[0])}else if(d<endTom)tom++});
+  return{due,tom,ops:OP_LIST.filter(o=>ops.has(o))}}
+const mondayKey=()=>{const d=new Date();d.setDate(d.getDate()-(d.getDay()+6)%7);return dayKey(d.getTime())};
+const isRound=m=>m!=='inf';
 const COIN='<svg class="coin" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#ffd36e"/><circle cx="12" cy="12" r="7.2" fill="none" stroke="#b8860b" stroke-width="1.6"/><path d="M12 7.5l1.4 2.9 3.1.4-2.3 2.2.6 3.1-2.8-1.5-2.8 1.5.6-3.1-2.3-2.2 3.1-.4z" fill="#b8860b"/></svg>';
 /* whole tokens as a number, plus two bars underneath: each bar is half a token */
 function tokenHTML(t,halfOverride){const whole=Math.floor(t+1e-9),half=halfOverride!=null?halfOverride:(t-whole>=.5-1e-9?1:0);
@@ -56,13 +69,15 @@ let syncing=false, again=false, syncTimer=null, syncStatus='wait';
 function setSync(st,text){syncStatus=st;const el=$('#syncState');el.className='sync '+st;
   el.lastChild.textContent=text||(st==='on'?'Tu tutor ve tu progreso':st==='off'?'Sin conexión, se guarda aquí':'Sincronizando…')}
 function mergeServer(u,facts){if(!facts)return;Object.keys(facts).forEach(k=>{const s=facts[k],l=u.facts[k];if(!l||(s.l||0)>(l.l||0))u.facts[k]=s})}
-function applyServer(u,data){mergeServer(u,data.facts);u.id=data.id;u.goal=data.goal;u.srv={tokens:+data.tokens,best_run:data.best_run,best_streak:data.best_streak}}
+function applyServer(u,data){mergeServer(u,data.facts);u.id=data.id;u.goal=data.goal;
+  u.srv={tokens:+data.tokens,best_run:data.best_run,best_streak:data.best_streak,days:data.days&&typeof data.days==='object'?data.days:null,
+    cls:data.class&&typeof data.class==='object'?{...data.class,at:Date.now()}:null}}
 function queueSync(ms=1500){if(syncTimer)return;syncTimer=setTimeout(()=>{syncTimer=null;sync()},ms)}
 async function sync(){const u=U;if(!u||!u.token||!sb)return;if(syncing){again=true;return}
   syncing=true;
   const sentFacts={},sentL={};u.dirty.forEach(k=>{if(u.facts[k]){sentFacts[k]=u.facts[k];sentL[k]=u.facts[k].l}});
   const sessions=u.pending.slice(0,50);
-  const live=G?{mode:G.mode,ops:G.ops.join(''),i:G.idx,n:G.mode==='round'?ROUND:null,c:G.results.filter(r=>r.ok).length,st:G.streak,at:Date.now()}:null;
+  const live=G?{mode:G.mode,ops:G.ops.join(''),i:G.idx,n:isRound(G.mode)?ROUND:null,c:G.results.filter(r=>r.ok).length,st:G.streak,at:Date.now()}:null;
   try{
     const {data,error}=await sb.rpc('student_sync',{p_token:u.token,p_facts:sentFacts,p_sessions:sessions,p_live:live});
     if(error)throw error;
@@ -124,7 +139,36 @@ function renderHome(){const u=U;paintTokens();
   $('#goalFill').style.width=Math.min(100,mins/goal*100)+'%';$('#goalFill').classList.toggle('done',mins>=goal);
   $('#goalText').textContent=mins>=goal?`Meta de hoy cumplida: ${mins} de ${goal} min`:`Meta de hoy: ${mins} de ${goal} min`;
   $('#orbitDesc').textContent=`Hasta que falles · récord ${bestRun(u)}`;
+  renderToday(u);
   if(!u.token)setSync('off','Sin sesión');else setSync(syncStatus)}
+/* "Hoy": day streak with a weekly rest day, this week's strip, daily review and the class constellation */
+const WD=['L','M','M','J','V','S','D'];
+function renderToday(u){const I=dayInfo(u),D=dueInfo(u),now=Date.now(),tk=dayKey();
+  const n=I.n;
+  $('#dayStreak').innerHTML=`<span class="dstar" aria-hidden="true">★</span>${n?`${n} ${n===1?'día seguido':'días seguidos'}`:'Empieza tu racha hoy'}`;
+  const left=Math.max(1,Math.ceil(I.thr-I.mins));
+  let note=I.today?'Hoy ya cuenta ✓':I.mins>0?`Juega ${left} min más y hoy cuenta`:n?`Juega ${I.thr} min y suma el día ${n+1}`:`Con ${I.thr} min hoy ya cuenta`;
+  $('#dayNote').textContent=note;
+  const yk=dayKey(now-DAY),restRecent=[...Array(7).keys()].some(i=>I.rest.has(dayKey(now-i*DAY)));
+  $('#restNote').textContent=I.rest.has(yk)?'Ayer fue tu día de descanso. Tu racha sigue viva.':restRecent?'Ya usaste el día de descanso de esta semana.':'Tienes 1 día de descanso por semana: si un día no puedes, tu racha no se pierde.';
+  const mon=new Date();mon.setHours(12,0,0,0);mon.setDate(mon.getDate()-(mon.getDay()+6)%7);
+  $('#week').innerHTML=WD.map((w,i)=>{const t=mon.getTime()+i*DAY,k=dayKey(t);
+    const c=k===tk?(I.today?'done today':'today'):t>now?'fut':I.has.has(k)?'done':I.rest.has(k)?'rest':'miss';
+    const lab=c.startsWith('done')?'practicó':c==='rest'?'día de descanso':c==='today'?'hoy':c==='fut'?'':'no jugó';
+    return`<span class="wd ${c}" title="${lab}"><i aria-hidden="true">${c.startsWith('done')?'★':c==='rest'?'☾':''}</i><small>${w}</small></span>`}).join('');
+  const rb=$('#mReview');
+  if(!startedOps(u).length){rb.dataset.go='mission';$('#reviewTitle').textContent='Tu primera misión';$('#reviewDesc').textContent='Elige una operación y enciende tus primeras estrellas'}
+  else if(D.due){rb.dataset.go='rev';$('#reviewTitle').textContent='Repaso del día';$('#reviewDesc').textContent=`${D.due} ${D.due===1?'estrella lista':'estrellas listas'} para subir de nivel`}
+  else{rb.dataset.go='mission';$('#reviewTitle').textContent='Todo repasado ✓';$('#reviewDesc').textContent=D.tom?`Mañana tendrás ${D.tom} listas. Hoy aprende estrellas nuevas.`:'Hoy aprende estrellas nuevas en una misión.'}
+  rb.classList.toggle('calm',rb.dataset.go!=='rev');
+  /* class constellation: everyone's practice days light the same sky. Only counts, never names. */
+  const c=u.srv.cls,box=$('#classBox');
+  if(!c||!(c.n>=2)){box.hidden=true;return}
+  box.hidden=false;const fresh=dayKey(c.at)===tk,thisWeek=c.wk===mondayKey(),goal=c.n*5,wk=thisWeek?Math.min(c.week,goal):0;
+  $('#classToday').textContent=fresh?`hoy jugaron ${c.today} de ${c.n}`:`${c.n} estudiantes`;
+  $('#classFill').style.width=Math.min(100,wk/goal*100)+'%';$('#classFill').classList.toggle('done',wk>=goal);
+  $('#classWeek').textContent=wk>=goal?'¡Tu clase encendió su constelación de la semana!':`${wk} de ${goal} días de práctica esta semana, entre todos`}
+const startedOps=u=>OP_LIST.filter(op=>FACTS[op].some(k=>u.facts[k]));
 function opCard(op,extra,on){return`<button type="button" class="opcard op-${op}${on?' on':''}" data-op="${op}" ${extra||''}><span class="sym">${OPS[op].sym}</span><span class="otext"><b>${OPS[op].fun}</b><span class="small">${OPS[op].name}</span></span><span class="ostars">${mastered(U.facts,op)}<small>/45 ★</small></span></button>`}
 function renderMission(){paintTokens();$('#missionOps').innerHTML=OP_LIST.map(op=>opCard(op)).join('')}
 function renderOrbit(){const u=U;paintTokens();$('#recRun').textContent=bestRun(u);const bs=bestStreak(u);$('#recStreak').innerHTML=`${flameFor(bs)}<span>${bs}</span>`;
@@ -133,7 +177,7 @@ function renderOrbit(){const u=U;paintTokens();$('#recRun').textContent=bestRun(
   $('#infTimeNote').textContent=lim?`Si pasan ${lim} s, se acaba la órbita`:'Piensa con calma';
   $('#infBtn').disabled=!u.infOps.length;$('#infBtn').textContent=u.infOps.length?'Despegar':'Elige al menos una'}
 function renderProfile(){const u=U,now=Date.now();paintTokens();$('#profUser').textContent=u.username;
-  const st=streak(new Set(u.log.map(s=>dayKey(s.s))));$('#streakDays').textContent=st>1?st+' días seguidos':'';
+  const st=dayInfo(u).n;$('#streakDays').textContent=st>1?st+' días seguidos':'';
   const mins=Math.round(minutesToday(u)),goal=u.goal||10,bs=bestStreak(u);
   const total=OP_LIST.reduce((a,op)=>a+mastered(u.facts,op),0);
   $('#profStats').innerHTML=[['Estrellas',total+'/180'],['Hoy',`${mins}/${goal} min`],['Récord órbita',bestRun(u)],['Récord racha',`${flameFor(bs)}${bs}`]].map(([a,b])=>`<div class="stat"><span class="small muted">${a}</span><b>${b}</b></div>`).join('');
@@ -144,7 +188,8 @@ function renderProfile(){const u=U,now=Date.now();paintTokens();$('#profUser').t
 function renderSettings(){$('#fxToggle').checked=fxOn()}
 $('#toProfile').addEventListener('click',()=>go('profile'));$('#rProfile').addEventListener('click',()=>go('profile'));
 $('#rSettings').addEventListener('click',()=>go('settings'));
-$('#mMission').addEventListener('click',()=>go('mission'));$('#mOrbit').addEventListener('click',()=>go('orbit'));
+$('#mMission').addEventListener('click',()=>go('mission'));
+$('#mReview').addEventListener('click',e=>{if(e.currentTarget.dataset.go==='rev'){const o=dueInfo(U).ops;if(o.length)return start('rev',o)}go('mission')});$('#mOrbit').addEventListener('click',()=>go('orbit'));
 document.querySelectorAll('[data-back]').forEach(b=>b.addEventListener('click',()=>go('home')));
 $('#fxToggle').addEventListener('change',e=>{S.fx=e.target.checked;save()});
 $('#missionOps').addEventListener('click',e=>{const b=e.target.closest('[data-op]');if(b){U.op=b.dataset.op;save();start('round',[U.op])}});
@@ -159,14 +204,16 @@ function touch(k){if(!U.dirty.includes(k))U.dirty.push(k)}
 let freezeTimer=null, tipTimer=null, limitTimer=null;
 function stopLimit(){clearTimeout(limitTimer);limitTimer=null;const i=$('#tbar i');i.style.transition='none';i.style.width=i.getBoundingClientRect().width+'px'}
 function start(mode,ops){fxSet(null);
-  G={id:window.T.uuid(),mode,ops,limit:mode==='inf'?limitOf(U):0,idx:0,retry:[],recent:[],introduced:[],results:[],ups:0,streak:0,maxStreak:0,tu:0,start:Date.now(),q:null,input:'',locked:false,lastIntro:false,startBest:{run:bestRun(U),streak:bestStreak(U)}};
-  $('#dots').hidden=mode!=='round';$('#dots').innerHTML=mode==='round'?'<i></i>'.repeat(ROUND):'';
+  const di=dayInfo(U);
+  G={id:window.T.uuid(),mode,ops,limit:mode==='inf'?limitOf(U):0,idx:0,retry:[],recent:[],introduced:[],results:[],ups:0,upKeys:[],wait:[],before:{mins:di.mins,counted:di.today},streak:0,maxStreak:0,tu:0,start:Date.now(),q:null,input:'',locked:false,lastIntro:false,startBest:{run:bestRun(U),streak:bestStreak(U)}};
+  $('#dots').hidden=!isRound(mode);$('#dots').innerHTML=isRound(mode)?'<i></i>'.repeat(ROUND):'';
   show('play');hud();next();queueSync(300)}
 function weighted(pool){const f=U.facts;let tot=0;const w=pool.map(k=>{const x=6-(f[k]?f[k].b:0);tot+=x;return x});let r=Math.random()*tot;for(let i=0;i<pool.length;i++){r-=w[i];if(r<=0)return pool[i]}return pool[0]}
-function pickRound(){const op=G.ops[0],keys=FACTS[op],f=U.facts,now=Date.now(),notRecent=k=>!G.recent.includes(k);
+/* Misión: one operation. Repaso del día: every operation with stars waiting; due stars first, new ones only after. */
+function pickRound(){const keys=G.ops.flatMap(op=>FACTS[op]),f=U.facts,now=Date.now(),notRecent=k=>!G.recent.includes(k);
   const ri=G.retry.findIndex(o=>o.at<=G.idx&&notRecent(o.k));if(ri>=0)return{k:G.retry.splice(ri,1)[0].k};
-  const fresh=ORDER[op].find(k=>!f[k]);const learning=keys.filter(k=>f[k]&&f[k].b===1).length;const seen=keys.filter(k=>f[k]).length;
-  if(fresh&&!G.lastIntro&&G.introduced.length<3&&(learning<3||seen===0))return{k:fresh,intro:true};
+  const fresh=G.ops.map(op=>ORDER[op].find(k=>!f[k])).find(Boolean);const learning=keys.filter(k=>f[k]&&f[k].b===1).length;const seen=keys.filter(k=>f[k]).length;
+  if(G.mode==='round'&&fresh&&!G.lastIntro&&G.introduced.length<3&&(learning<3||seen===0))return{k:fresh,intro:true};
   const due=keys.filter(k=>f[k]&&f[k].d<=now&&notRecent(k)).sort((a,b)=>f[a].b-f[b].b||f[a].d-f[b].d);
   if(due.length)return{k:due[Math.floor(Math.random()*Math.min(3,due.length))]};
   if(fresh&&!G.lastIntro&&G.introduced.length<5)return{k:fresh,intro:true};
@@ -178,8 +225,8 @@ function pickInf(){const ri=G.retry.findIndex(o=>o.at<=G.idx&&!G.recent.includes
   /* difficulty ramps up: starts with the easiest families and opens more as the run grows */
   const open=Math.min(45,10+Math.floor(G.idx/2));
   const pool=G.ops.flatMap(op=>ORDER[op].slice(0,open)).filter(k=>!G.recent.includes(k));return{k:weighted(pool)}}
-function next(){clearTimeout(freezeTimer);stopLimit();if(G.mode==='round'&&G.idx>=ROUND)return endGame();
-  const c=G.mode==='round'?pickRound():pickInf();const k=c.k;G.recent=[k,...G.recent].slice(0,3);G.lastIntro=!!c.intro;
+function next(){clearTimeout(freezeTimer);stopLimit();if(isRound(G.mode)&&G.idx>=ROUND)return endGame();
+  const c=isRound(G.mode)?pickRound():pickInf();const k=c.k;G.recent=[k,...G.recent].slice(0,3);G.lastIntro=!!c.intro;
   const[op,a,b]=parts(k);let x=a,y=b;if(Math.random()<.5)[x,y]=[y,x];
   const rec=U.facts[k];const missing=(op==='m'||op==='a')&&rec&&rec.b>=3&&Math.random()<.25;
   const q={k,op,a,b,x,y};const sym=OPS[op].sym;let html,shown;
@@ -207,8 +254,8 @@ $('#introOk').addEventListener('click',()=>{$('#intro').hidden=true;G.locked=fal
 function hud(bump){const n=G.streak;$('#streakIcon').innerHTML=flameFor(n);$('#streakNum').textContent=n;
   const t=tierOf(n);const box=$('#streakBox');box.className='streak'+(t?' lit t-'+t.id:'');if(bump){void box.offsetWidth;box.classList.add('bump')}
   $('#tokenBtn').innerHTML=tokenHTML(tokensOf(U));$('#tokenBtn').disabled=tokensOf(U)<1;
-  if(G.mode==='round'){const ds=$('#dots').children;for(let i=0;i<ROUND;i++){const r=G.results[i];ds[i].className=r?(r.tok?'tok':r.ok?(r.fast?'ok':'slow'):'bad'):(i===G.idx?'now':'')}
-    $('#playInfo').textContent=`${OPS[G.ops[0]].fun} · ${Math.min(G.idx+1,ROUND)} de ${ROUND}`}
+  if(isRound(G.mode)){const ds=$('#dots').children;for(let i=0;i<ROUND;i++){const r=G.results[i];ds[i].className=r?(r.tok?'tok':r.ok?(r.fast?'ok':'slow'):'bad'):(i===G.idx?'now':'')}
+    $('#playInfo').textContent=`${G.mode==='rev'?'Repaso del día':OPS[G.ops[0]].fun} · ${Math.min(G.idx+1,ROUND)} de ${ROUND}`}
   else $('#playInfo').textContent=`Operaciones: ${G.results.filter(r=>r.ok).length} · Récord ${G.startBest.run}`}
 function press(k){if(cur!=='play'||!G||G.locked)return;
   if(k==='del'){G.input=G.input.slice(0,-1);G.edited=true}else if(k==='ok'){if(G.input)submit();return}else if(G.input.length<3)G.input+=k;
@@ -223,7 +270,7 @@ document.addEventListener('keydown',e=>{if(cur!=='play'||!G)return;
 function record(ok,fast,el){const now=Date.now(),q=G.q;let rec=U.facts[q.k];
   if(!rec){rec=U.facts[q.k]={b:1,a:0,w:0,t:0,l:now,d:now,up:0};G.introduced.push(q.k)}
   rec.a++;rec.l=now;if(ok)rec.t=rec.t?Math.round(rec.t*.7+el*.3):Math.round(el);
-  if(fast){if(rec.d<=now){if(rec.b<5){rec.b++;rec.up=now;G.ups++}rec.d=now+INTERVAL[rec.b]}}
+  if(fast){if(rec.d<=now){if(rec.b<5){rec.b++;rec.up=now;G.ups++;G.upKeys.push(q.k)}rec.d=now+INTERVAL[rec.b]}else if(rec.b<5)G.wait.push(q.k)}
   else if(ok){if(rec.b>=3)rec.b--;rec.b=Math.max(1,rec.b);rec.d=now+INTERVAL[rec.b];if(rec.b===1)G.retry.push({k:q.k,at:G.idx+4})}
   else{rec.w++;rec.b=1;rec.d=now;G.retry.push({k:q.k,at:G.idx+3})}
   touch(q.k)}
@@ -249,14 +296,14 @@ $('#tokenBtn').addEventListener('click',()=>{if(!G||G.locked||tokensOf(U)<1)retu
   armed=false;$('#tokenTip').hidden=true;clearTimeout(tipTimer);clearTimeout(freezeTimer);stopLimit();clearTimeout(G.lowAt);
   const q=G.q;G.locked=true;G.tu++;
   const now=Date.now();let rec=U.facts[q.k];if(!rec){rec=U.facts[q.k]={b:1,a:0,w:0,t:0,l:now,d:now,up:0}}
-  rec.l=now;rec.b=1;rec.d=now;touch(q.k);if(G.mode==='round')G.retry.push({k:q.k,at:G.idx+4});
+  rec.l=now;rec.b=1;rec.d=now;touch(q.k);if(isRound(G.mode))G.retry.push({k:q.k,at:G.idx+4});
   G.results.push({k:q.k,ok:false,tok:true,el:0});G.idx++;save();hud();queueSync();
   $('#ans').textContent=q.ans;$('#fb').textContent='Token usado: '+q.shown;$('#fb').className='fb tokfb';setTimeout(next,1800)});
 function quitGame(){clearTimeout(freezeTimer);stopLimit();if(G)clearTimeout(G.lowAt);fxSet(null);if(G&&G.results.length)finishSession();G=null;$('#intro').hidden=$('#wrong').hidden=true;go('home');sync()}
 $('#quitBtn').addEventListener('click',quitGame);
 function finishSession(){const R=G.results.filter(r=>!r.tok),c=R.filter(r=>r.ok),f=R.filter(r=>r.fast),now=Date.now();
   const n=G.results.length;
-  const pf=G.mode==='round'&&n>=ROUND&&c.length===n&&G.tu===0;
+  const pf=isRound(G.mode)&&n>=ROUND&&c.length===n&&G.tu===0;
   const s={id:G.id,s:G.start,e:now,mode:G.mode,ops:G.ops.join(''),n,c:c.length,f:f.length,ms:c.length?Math.round(c.reduce((a,r)=>a+r.el,0)/c.length):0,nw:G.introduced.length,mk:G.maxStreak,tu:G.tu,pf};
   U.pending.push(s);U.log.push({s:G.start,e:now});if(U.log.length>200)U.log=U.log.slice(-200);save();return s}
 function endGame(){clearTimeout(freezeTimer);stopLimit();clearTimeout(G.lowAt);fxSet(null);const s=finishSession(),inf=G.mode==='inf';
@@ -264,21 +311,32 @@ function endGame(){clearTimeout(freezeTimer);stopLimit();clearTimeout(G.lowAt);f
   if(s.pf)banners.push('¡Misión perfecta! Ganaste medio token.');
   if(inf&&s.c>G.startBest.run)banners.push(`¡Nuevo récord: ${s.c} operaciones!`);
   if(s.mk>G.startBest.streak&&s.mk>=3)banners.push(`¡Nuevo récord de racha: ${s.mk}!`);
+  const di=dayInfo(U),goalNow=U.goal||10;
+  if(G.before.mins<goalNow&&di.mins>=goalNow)banners.push('¡Cumpliste tu meta de hoy!');
+  if(!G.before.counted&&di.today)banners.push(di.n>1?`Hoy ya cuenta: ¡${di.n} días seguidos!`:'Hoy ya cuenta: empezaste tu racha de días.');
   $('#endBanner').hidden=!banners.length;$('#endBanner').innerHTML=banners.map(esc).join('<br>');
-  const late=G.results.some(r=>r.late);$('#endEyebrow').textContent=inf?(late?'Órbita infinita · se acabó el tiempo':'Órbita infinita'):'Misión '+OPS[G.ops[0]].fun;
+  const late=G.results.some(r=>r.late);$('#endEyebrow').textContent=inf?(late?'Órbita infinita · se acabó el tiempo':'Órbita infinita'):G.mode==='rev'?'Repaso del día':'Misión '+OPS[G.ops[0]].fun;
   $('#endTitle').textContent=inf?`${s.c} operaciones seguidas`:(s.c>=18?'¡Qué ronda, '+U.username+'!':s.c>=14?'Buen trabajo, '+U.username+'.':'Vas sumando, '+U.username+'.');
   const mins=Math.round(minutesToday(U)),goal=U.goal||10;$('#endGoal').textContent=mins>=goal?`Meta de hoy cumplida: ${mins} de ${goal} min.`:`Llevas ${mins} de ${goal} min hoy.`;
   const stats=inf?[['Operaciones',s.c],['Récord',Math.max(s.c,G.startBest.run)],['Mejor racha',`${flameFor(s.mk)}${s.mk}`]]
                  :[['Aciertos',s.c+'/'+s.n],['De memoria',s.f],['Mejor racha',`${flameFor(s.mk)}${s.mk}`]];
   $('#endStats').innerHTML=stats.map(([a,b])=>`<div class="stat"><span class="small muted">${a}</span><b>${b}</b></div>`).join('');
   animateTokens(s.pf);
+  /* why come back tomorrow: fast answers that were not due yet wait for their next review to level up */
+  const waitN=new Set(G.wait.filter(k=>!G.upKeys.includes(k)&&U.facts[k]&&U.facts[k].d>Date.now())).size,D=dueInfo(U),tl=[];
+  if(G.ups)tl.push(`${G.ups} ${G.ups===1?'estrella subió':'estrellas subieron'} de nivel hoy.`);
+  if(waitN)tl.push(`${waitN} ${waitN===1?'respuesta de memoria espera':'respuestas de memoria esperan'} su repaso para subir: la memoria se graba de un día para otro.`);
+  if(D.tom)tl.push(`Mañana tendrás ${D.tom} ${D.tom===1?'estrella lista':'estrellas listas'} para subir de nivel.`);
+  $('#eTomWrap').hidden=!tl.length;$('#eTom').innerHTML=tl.map(t=>`<p>${esc(t)}</p>`).join('');
   const fmt=k=>{const[op,a,b]=parts(k);return op==='s'?`${a+b} − ${a} = ${b}`:op==='d'?`${a*b} ÷ ${a} = ${b}`:`${a} ${OPS[op].sym} ${b} = ${OPS[op].res(a,b)}`};
   $('#eNewWrap').hidden=inf||!G.introduced.length;$('#eNew').innerHTML=[...new Set(G.introduced)].map(k=>`<span class="chip ok">${fmt(k)}</span>`).join('');
   const miss=[...new Set(G.results.filter(r=>!r.ok).map(r=>r.k))];
   $('#eMissWrap').hidden=!miss.length;$('#eMiss').innerHTML=miss.map(k=>`<span class="chip bad">${fmt(k)}</span>`).join('');
   $('#againBtn').dataset.mode=G.mode;$('#againBtn').dataset.ops=G.ops.join('');
   G=null;show('end');sync()}
-$('#againBtn').addEventListener('click',e=>start(e.currentTarget.dataset.mode,e.currentTarget.dataset.ops.split('')));
+$('#againBtn').addEventListener('click',e=>{const m=e.currentTarget.dataset.mode;
+  if(m==='rev'){const o=dueInfo(U).ops;return o.length?start('rev',o):go('mission')}
+  start(m,e.currentTarget.dataset.ops.split(''))});
 $('#endHome').addEventListener('click',()=>go('home'));
 
 /* token reward: fill the next half bar; when both halves are full, pop a new token */

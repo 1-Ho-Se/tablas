@@ -59,6 +59,15 @@ const dayKey=(t=Date.now())=>{const d=new Date(t);return d.getFullYear()+'-'+Str
 const mastered=(facts,op)=>FACTS[op].filter(k=>facts[k]&&facts[k].b>=4).length;
 function cat(r){if(!r)return'none';if(r.b>=4)return'dom';if(r.b>=2)return'mej';return'ref'}
 function streak(daySet){let n=0,t=Date.now();if(!daySet.has(dayKey(t)))t-=DAY;while(daySet.has(dayKey(t))){n++;t-=DAY}return n}
+/* kid-facing day streak: one rest day per 7 days keeps it alive (never two misses in a row).
+   Today does not break it until it is over. Returns {n: days played, rest: Set of rest-day keys, today: played today} */
+function dayStreak(has){const rest=new Set();let n=0,t=Date.now(),i=0,lastRest=-99;const today=has.has(dayKey(t));
+  if(!today){t-=DAY;i=1}
+  for(let g=0;g<800;g++,i++,t-=DAY){const k=dayKey(t);
+    if(has.has(k)){n++;continue}
+    if(i-lastRest>=7&&has.has(dayKey(t-DAY))&&(n>0||i===1)){rest.add(k);lastRest=i;continue}
+    break}
+  return{n,rest,today}}
 function client(){const c=window.TABLAS_CONFIG||{};if(!c.supabaseUrl||!c.supabaseKey||!window.supabase)return null;
   return window.supabase.createClient(c.supabaseUrl,c.supabaseKey,{auth:{persistSession:true,autoRefreshToken:true}})}
 function uuid(){if(crypto.randomUUID)return crypto.randomUUID();const b=crypto.getRandomValues(new Uint8Array(16));b[6]=b[6]&15|64;b[8]=b[8]&63|128;
@@ -67,5 +76,5 @@ function uuid(){if(crypto.randomUUID)return crypto.randomUUID();const b=crypto.g
 function flameSVG(color,cls){const rb=color==='rainbow';const id='fg'+Math.random().toString(36).slice(2,7);
   const fill=rb?`url(#${id})`:color;
   return`<svg class="${cls||'flame'}" viewBox="0 0 24 28" aria-hidden="true">${rb?`<defs><linearGradient id="${id}" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#ff3b30"/><stop offset=".3" stop-color="#ffcc00"/><stop offset=".55" stop-color="#34c759"/><stop offset=".8" stop-color="#4da3ff"/><stop offset="1" stop-color="#af52de"/></linearGradient></defs>`:''}<path fill="${fill}" d="M12 1c1 4 6 7 6 13a6 6 0 0 1-12 0c0-3 2-5 3-7 0 2 1 3 2 3 0-3 0-6 1-9z"/><path fill="#fff" opacity=".55" d="M12 14c.6 2 3 3 3 5.5a3 3 0 0 1-6 0c0-1.5 1-2.5 1.5-3.5.3 1 .8 1.5 1.5 1.5 0-1.2-.3-2.3 0-3.5z"/></svg>`}
-window.T={DAY,OPS,OP_LIST,PAIRS,FACTS,ALL_FACTS,parts,keyOf,ORDER,hint,TIERS,tierOf,fmtTokens,esc,dayKey,mastered,cat,streak,client,uuid,flameSVG};
+window.T={DAY,OPS,OP_LIST,PAIRS,FACTS,ALL_FACTS,parts,keyOf,ORDER,hint,TIERS,tierOf,fmtTokens,esc,dayKey,mastered,cat,streak,dayStreak,client,uuid,flameSVG};
 })();
