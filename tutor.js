@@ -60,7 +60,7 @@ function todayPill(s,I){const g=s.daily_goal_min,m=Math.round(I.today.min);
   return`<span class="pill bad">No ha practicado hoy</span>`}
 function livePill(s){const l=s.live;if(!isLive(s))return'';
   return l.mode==='inf'?`<span class="pill live">Infinito ${opsName(l.ops||'')} · ${l.c}${l.st>=3?' · racha '+l.st:''}</span>`
-                       :`<span class="pill live">${OPS[(l.ops||'m')[0]].name} ${l.i}/${l.n}${l.st>=3?' · racha '+l.st:''}</span>`}
+                       :`<span class="pill live">${l.mode==='rev'?'Repaso del día':OPS[(l.ops||'m')[0]].name} ${l.i}/${l.n}${l.st>=3?' · racha '+l.st:''}</span>`}
 
 /* ---------- list ---------- */
 function render(){if(cur==='student')renderStudent();renderList()}
@@ -87,12 +87,12 @@ $('#stuBack').addEventListener('click',()=>{renderList();show('list')});
 let delArmed=false;
 function renderStudent(fresh){const s=students.find(x=>x.id===stuId);if(!s){renderList();show('list');return}
   const I=info(s);
-  if(fresh){delArmed=false;$('#stuDel').textContent='Eliminar estudiante';$('#goalIn').value=s.daily_goal_min;$('#noteIn').value=s.real_name||'';$('#passIn').value='';$('#acctMsg').textContent=''}
+  if(fresh){delArmed=false;$('#remindMsg').textContent='';$('#stuDel').textContent='Eliminar estudiante';$('#goalIn').value=s.daily_goal_min;$('#noteIn').value=s.real_name||'';$('#passIn').value='';$('#acctMsg').textContent=''}
   $('#stuName').textContent=label(s);$('#stuUpdated').textContent='Última actividad '+ago(s.last);
   $('#stuLive').innerHTML=livePill(s)||todayPill(s,I);
   const recent=I.mine.slice(0,5),n=recent.reduce((a,x)=>a+x.n,0),ok=recent.reduce((a,x)=>a+x.correct,0);
   const st=[['Días practicados (7)',I.days7+' de 7'],['Minutos (7 días)',Math.round(I.min7)],['Racha',I.streak+(I.streak===1?' día':' días')],
-    ['Aciertos (últimas 5)',n?Math.round(ok/n*100)+'%':'—'],['Récord infinito',I.bestRun],['Récord de racha',`${flameFor(I.bestStreak)}${I.bestStreak}`],['Tokens',fmtTokens(I.tokens)]];
+    ['Aciertos (últimas 5)',n?Math.round(ok/n*100)+'%':'—'],['Listas para repaso',dueCount(s)],['Récord infinito',I.bestRun],['Récord de racha',`${flameFor(I.bestStreak)}${I.bestStreak}`],['Tokens',fmtTokens(I.tokens)]];
   $('#stuStats').innerHTML=st.map(([a,b])=>`<div class="stat"><span class="small muted">${a}</span><b>${b}</b></div>`).join('');
   $('#stuOps').innerHTML=OP_LIST.map(op=>`<div class="stat"><span class="small muted">${OPS[op].name}</span><b>${mastered(s.facts,op)}/45</b></div>`).join('');
   /* calendar: 5 weeks, Monday first, colored by minutes vs goal */
@@ -118,7 +118,16 @@ function renderStudent(fresh){const s=students.find(x=>x.id===stuId);if(!s){rend
   const up=keys.filter(k=>{const r=s.facts[k];return r&&r.up&&r.up>Date.now()-7*DAY});
   $('#stuUp').innerHTML=up.length?up.map(k=>`<span class="chip mej">${fmtFact(k)} → nivel ${s.facts[k].b}</span>`).join(''):'<span class="muted small">Sin cambios esta semana.</span>';
   $('#stuDom').innerHTML=c.dom.length?c.dom.map(k=>`<span class="chip ok">${fmtFact(k)}</span>`).join(''):'<span class="muted small">Todavía ninguna.</span>';
-  $('#stuSess').innerHTML=I.mine.slice(0,20).map(x=>`<tr><td>${fmtDate.format(new Date(x.s))}</td><td>${x.mode==='inf'?'Infinito '+opsName(x.ops):OPS[x.ops[0]].name}${x.perfect?' ★':''}</td><td>${Math.max(1,Math.round((x.e-x.s)/6e4))} min</td><td>${x.n}</td><td>${x.n?Math.round(x.correct/x.n*100):0}%</td><td>${x.fast}</td><td>${x.avg_ms?(x.avg_ms/1000).toFixed(1)+' s':'—'}</td><td>${x.max_streak}</td><td>${x.tokens_used||''}</td></tr>`).join('')||'<tr><td colspan="9" class="muted">Sin partidas todavía.</td></tr>'}
+  $('#stuSess').innerHTML=I.mine.slice(0,20).map(x=>`<tr><td>${fmtDate.format(new Date(x.s))}</td><td>${x.mode==='inf'?'Infinito '+opsName(x.ops):x.mode==='rev'?'Repaso del día '+opsName(x.ops):OPS[x.ops[0]].name}${x.perfect?' ★':''}</td><td>${Math.max(1,Math.round((x.e-x.s)/6e4))} min</td><td>${x.n}</td><td>${x.n?Math.round(x.correct/x.n*100):0}%</td><td>${x.fast}</td><td>${x.avg_ms?(x.avg_ms/1000).toFixed(1)+' s':'—'}</td><td>${x.max_streak}</td><td>${x.tokens_used||''}</td></tr>`).join('')||'<tr><td colspan="9" class="muted">Sin partidas todavía.</td></tr>'}
+/* stars whose review time has come: what the student's "Repaso del día" will bring */
+function dueCount(s){const now=Date.now();return Object.values(s.facts).filter(r=>r&&r.d<=now).length}
+/* a friendly WhatsApp reminder, never a scolding */
+$('#stuRemind').addEventListener('click',()=>{const s=students.find(x=>x.id===stuId);if(!s)return;
+  const app=new URL('./',location.href).href,name=s.real_name?s.real_name.split(' ')[0]:s.username,due=dueCount(s),g=s.daily_goal_min;
+  const text=due?`¡Hola, ${name}! Hoy tienes ${due} ${due===1?'estrella lista':'estrellas listas'} para subir de nivel en Constelación ×. Con ${g} minutos basta. ${app}`
+                :`¡Hola, ${name}! Tu galaxia te espera en Constelación ×. Hoy puedes encender estrellas nuevas en ${g} minutos. ${app}`;
+  const fail=()=>msg($('#remindMsg'),'No pude copiar. Texto: '+text);
+  try{navigator.clipboard.writeText(text).then(()=>msg($('#remindMsg'),'Copiado. Pégalo en WhatsApp.',true),fail)}catch(e){fail()}});
 function fmtFact(k){const[op,a,b]=parts(k);return op==='s'?`${a+b} − ${a}`:op==='d'?`${a*b} ÷ ${a}`:`${a} ${OPS[op].sym} ${b}`}
 $('#heatTabs').addEventListener('click',e=>{const b=e.target.closest('[data-hop]');if(b){heatOp=b.dataset.hop;renderStudent()}});
 async function saveField(patch,okText){const {error}=await sb.from('students').update(patch).eq('id',stuId);

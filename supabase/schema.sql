@@ -50,7 +50,7 @@ create table if not exists public.sessions (
   student_id   uuid not null references public.students(id) on delete cascade,
   started_at   timestamptz not null,
   ended_at     timestamptz not null,
-  mode         text not null default 'round' check (mode in ('round', 'inf')),
+  mode         text not null default 'round' check (mode in ('round', 'inf', 'rev')),
   ops          text not null default 'm',
   n            int not null,
   correct      int not null,
@@ -63,6 +63,9 @@ create table if not exists public.sessions (
   created_at   timestamptz not null default now()
 );
 create index if not exists sessions_student_started on public.sessions (student_id, started_at desc);
+-- v8: "rev" = Repaso del día. Para bases creadas antes, se cambia la regla sin tocar datos.
+alter table public.sessions drop constraint if exists sessions_mode_check;
+alter table public.sessions add constraint sessions_mode_check check (mode in ('round', 'inf', 'rev'));
 
 alter table public.tutors         enable row level security;
 alter table public.students       enable row level security;
@@ -166,7 +169,13 @@ declare
   v jsonb;
   merged jsonb;
   st record;
+  tz constant text := 'America/Santo_Domingo';  -- los días se cuentan en hora de República Dominicana
+  today date := (now() at time zone 'America/Santo_Domingo')::date;
+  wk date;
+  days_j jsonb;
+  cls record;
 begin
+  wk := today - (extract(isodow from today)::int - 1);  -- lunes de esta semana
   update public.student_tokens set last_used_at = now()
    where token_hash = encode(digest(coalesce(p_token, ''), 'sha256'), 'hex')
   returning student_id into sid;
@@ -188,7 +197,7 @@ begin
                                new_facts, max_streak, tokens_used, perfect)
   select (x->>'id')::uuid, sid,
          to_timestamp((x->>'s')::bigint / 1000.0), to_timestamp((x->>'e')::bigint / 1000.0),
-         case when x->>'mode' = 'inf' then 'inf' else 'round' end,
+         case when x->>'mode' in ('inf', 'rev') then x->>'mode' else 'round' end,
          left(regexp_replace(coalesce(x->>'ops', 'm'), '[^masd]', '', 'g'), 4),
          least((x->>'n')::int, 2000), least((x->>'c')::int, 2000), least((x->>'f')::int, 2000),
          least((x->>'ms')::int, 600000), least((x->>'nw')::int, 180),
@@ -207,10 +216,28 @@ begin
          coalesce(max(max_streak), 0) as best_streak
     into st from public.sessions where student_id = sid;
 
+  -- Minutos por día (todos sus dispositivos), para la meta diaria y la racha de días.
+  select coalesce(jsonb_object_agg(d, round(m, 1)), '{}'::jsonb) into days_j
+    from (select to_char((started_at at time zone tz)::date, 'YYYY-MM-DD') as d,
+                 sum(greatest(0, extract(epoch from (ended_at - started_at)) / 60.0))::numeric as m
+            from public.sessions
+           where student_id = sid and started_at >= now() - interval '400 days'
+           group by 1) t;
+
+  -- Constelación de la clase: solo conteos, nunca nombres.
+  select (select count(*) from public.students where tutor_id = s.tutor_id) as n,
+         count(distinct x.student_id) filter (where (x.started_at at time zone tz)::date = today) as today_n,
+         count(distinct x.student_id::text || (x.started_at at time zone tz)::date::text) as week_n
+    into cls
+    from public.sessions x join public.students y on y.id = x.student_id
+   where y.tutor_id = s.tutor_id and x.started_at >= (wk::timestamp at time zone tz);
+
   return jsonb_build_object(
     'id', sid, 'username', s.username, 'goal', s.daily_goal_min, 'facts', merged,
     'tokens', 3 + 0.5 * st.perfect_rounds - st.used,
-    'best_run', st.best_run, 'best_streak', st.best_streak);
+    'best_run', st.best_run, 'best_streak', st.best_streak,
+    'days', days_j,
+    'class', jsonb_build_object('n', cls.n, 'today', cls.today_n, 'week', cls.week_n, 'wk', to_char(wk, 'YYYY-MM-DD')));
 end $$;
 
 revoke all on function public.tutor_class_code() from public, anon;

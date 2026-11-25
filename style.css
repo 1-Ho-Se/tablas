@@ -317,3 +317,33 @@ body.space #space{opacity:1}
 #space .cstar{animation:pulse var(--d,5s) ease-in-out var(--l,0s) infinite alternate}
 @keyframes pulse{from{opacity:.95}to{opacity:.55}}
 @media (prefers-reduced-motion:reduce){#space .tw,#space .cstar{animation:none}}
+
+/* ===== v8: "Hoy" on the menu: day streak, week strip, daily review, class constellation ===== */
+.todaybox{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.dstreak{font-family:var(--display);font-size:1.1rem;display:inline-flex;align-items:center;gap:6px}
+.dstar{color:var(--star);font-size:1.25rem;text-shadow:0 0 10px #ffd36e88}
+.dnote{color:var(--star);font-weight:800}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.wd{display:flex;flex-direction:column;align-items:center;gap:3px}
+.wd i{width:100%;max-width:38px;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:1.05rem;font-weight:800;
+  background:#1a2350;border:2px solid transparent;color:#231a00}
+.wd small{font-size:.7rem;font-weight:800;color:var(--muted)}
+.wd.done i{background:var(--star);box-shadow:0 0 10px #ffd36e66}
+.wd.rest i{background:#2b3a7a;color:#cfe0ff}
+.wd.today i{border-color:var(--star);border-style:dashed;background:#ffd36e14}
+.wd.today small,.wd.done.today small{color:var(--fg)}
+.wd.fut i{background:#141b40;opacity:.6}
+.review{border:0;border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:2px;align-items:flex-start;text-align:left;min-height:56px;
+  background:linear-gradient(135deg,#5ee0a8,#2fb8c9);color:#06231a;box-shadow:0 5px 0 #00000055;transition:transform .1s}
+.review:active{transform:translateY(3px);box-shadow:0 2px 0 #00000055}
+.review .rtitle{font-family:var(--display);font-weight:800;font-size:1.15rem}
+.review .rdesc{font-weight:700;font-size:.9rem;opacity:.9}
+.review.calm{background:var(--panel2);color:var(--fg);border:1px solid var(--line);box-shadow:none}
+.review.calm .rdesc{color:var(--muted);opacity:1}
+.classbox{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:10px}
+.classbox .meter i{background:linear-gradient(90deg,#a99bff,#5b6cff)}
+.classbox .meter i.done{background:var(--star)}
+.panel.tom{border-color:#5ee0a866}
+.panel.tom p{font-weight:700}
+#v-home .modebtn{padding:18px 16px}
+@media (max-width:380px){.todaybox{padding:12px;gap:8px}.wd i{font-size:.9rem}}

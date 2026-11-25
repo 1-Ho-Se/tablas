@@ -64,6 +64,17 @@
     <h1 class="logotitle">Constelación <span>×</span></h1>
     <div class="goalmini"><div class="meter"><i id="goalFill"></i></div><span class="small" id="goalText"></span></div>
   </div>
+  <div class="todaybox" id="todayBox">
+    <div class="spread"><b class="dstreak" id="dayStreak"></b><span class="small dnote" id="dayNote"></span></div>
+    <div class="week" id="week" aria-label="Esta semana"></div>
+    <p class="small muted" id="restNote"></p>
+    <button type="button" class="review" id="mReview"><span class="rtitle" id="reviewTitle">Repaso del día</span><span class="rdesc" id="reviewDesc"></span></button>
+    <div class="classbox" id="classBox" hidden>
+      <div class="spread"><span class="small"><b>Constelación de la clase</b></span><span class="small muted" id="classToday"></span></div>
+      <div class="meter"><i id="classFill"></i></div>
+      <span class="small muted" id="classWeek"></span>
+    </div>
+  </div>
   <div class="menu">
     <div class="modes">
       <button type="button" class="modebtn mission" id="mMission"><span class="mname">Misión estelar</span><span class="mdesc">20 preguntas · enciende estrellas</span></button>
@@ -126,6 +137,7 @@
   <div class="panel">
     <h3>Cómo se juega</h3>
     <p class="small muted">Responde bien y rápido para encender estrellas. Tres respuestas seguidas en menos de 3 segundos prenden la racha. Un token te muestra la respuesta y pasa a la siguiente. Cada misión perfecta te da medio token.</p>
+    <p class="small muted">Una estrella solo sube de nivel cuando le toca repaso, por eso conviene jugar un poquito cada día. El <b>Repaso del día</b> te trae justo las que están listas. Un día cuenta para tu racha cuando juegas al menos 3 minutos, y tienes 1 día de descanso por semana.</p>
   </div>
   <button class="btn danger" type="button" id="logoutBtn">Cerrar sesión</button>
 </section>
@@ -183,6 +195,7 @@
   </div>
   <div class="banner win" id="endBanner" hidden></div>
   <div class="stats" id="endStats"></div>
+  <div class="panel tom" id="eTomWrap" hidden><h3>Vuelve mañana</h3><div id="eTom"></div></div>
   <div class="panel" id="eNewWrap"><h3>Estrellas nuevas</h3><div class="chips" id="eNew"></div></div>
   <div class="panel" id="eMissWrap"><h3>Para repasar</h3><div class="chips" id="eMiss"></div></div>
   <button class="btn primary big" type="button" id="againBtn">Otra vez</button>
